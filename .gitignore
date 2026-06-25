@@ -1,0 +1,43 @@
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Arduino build outputs
+build/
+*.elf
+*.bin
+*.hex
+*.map
+*.uf2
+*.eep
+*.lst
+*.sym
+*.d
+*.o
+*.a
+
+# PlatformIO / embedded tooling
+.pio/
+.pioenvs/
+.piolibdeps/
+platformio.ini
+
+# Zephyr future workspace/build outputs
+zephyr/build/
+zephyr/workspace/
+**/build/
+west.yml.lock
+
+# Python/helper tooling
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets/local config
+.env
+*.local
+wifi_secrets.h
