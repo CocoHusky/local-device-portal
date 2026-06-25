@@ -1,0 +1,34 @@
+name: Zephyr build
+
+on:
+  pull_request:
+    paths:
+      - 'zephyr/**'
+      - '.github/workflows/zephyr-build.yml'
+      - 'scripts/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@v4
+        with:
+          path: local-device-portal
+
+      - name: Install west
+        run: python3 -m pip install --user west
+
+      - name: Initialize Zephyr workspace
+        run: |
+          cd local-device-portal
+          west init -l zephyr
+          west update
+          west zephyr-export
+          python3 -m pip install --user -r ../zephyr/scripts/requirements.txt
+
+      - name: Build ESP32-C6 target
+        run: |
+          cd local-device-portal
+          west build -p=always -b xiao_esp32c6/esp32c6/hpcore zephyr/local_device_portal
