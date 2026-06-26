@@ -5,10 +5,18 @@ The Arduino sketch is the working portal firmware.
 ## Portal Code
 
 ```text
-arduino/local_device_portal/local_device_portal.ino
+arduino/local_device_portal/
+├── local_device_portal.ino   # setup/loop, routes, pages, AP/STA flow
+├── portal_config.h           # constants and shared runtime state
+├── portal_utils.h            # HTML, JSON, and signal helpers
+├── wifi_portal.h             # hostname, mDNS, and saved Wi-Fi credentials
+├── portal_steps.h            # setup progress indicator
+├── portal_status_card.h      # status card renderer
+├── portal_actions.h          # reset/settings action renderer
+└── portal_forms.h            # password field UI helpers
 ```
 
-It generates and serves the setup portal HTML from the ESP32-C6.
+The main `.ino` still owns the firmware flow. Smaller portal helpers are split into Arduino tabs so the sketch is easier to read without changing runtime behavior.
 
 ## Install
 
