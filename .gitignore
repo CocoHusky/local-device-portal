@@ -1,12 +1,83 @@
-# OS/editor
+# -----------------------------------------------------------------------------
+# Local Device Portal .gitignore
+#
+# Keep generated files, local machine state, credentials, and build artifacts out
+# of Git. Keep source files, examples, docs, diagrams, and project manifests in
+# the repo so another developer can clone and build the project.
+# -----------------------------------------------------------------------------
+
+# macOS / Windows / Linux filesystem noise
 .DS_Store
-.vscode/
+.AppleDouble
+.LSOverride
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+.Trash-*/
+*.stackdump
+
+# Editor / IDE state
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+!.vscode/tasks.example.json
+!.vscode/launch.example.json
 .idea/
+*.sublime-workspace
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
 *.swp
 *.swo
+*~
 
-# Arduino build outputs
+# Local notes and scratch files
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.log
+logs/
+tmp/
+temp/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+!.env.template
+*.local
+*.secret
+*.secrets
+secrets/
+private/
+wifi_secrets.h
+wifi_credentials.h
+credentials.h
+*_secrets.h
+*_credentials.h
+*secret*.json
+*credentials*.json
+
+# Certificates / keys that should not be committed
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.csr
+id_rsa*
+id_ed25519*
+
+# Arduino CLI / Arduino IDE generated files
 build/
+**/build/
+build-*/
 *.elf
 *.bin
 *.hex
@@ -17,28 +88,93 @@ build/
 *.sym
 *.d
 *.o
+*.obj
 *.a
+*.la
+*.lo
+*.gcno
+*.gcda
+*.su
+*.dis
+*.lss
+*.with_bootloader.bin
+*.ino.cpp
+.arduino/
+.arduino15/
+arduino-sketch-*/
 
-# PlatformIO / embedded tooling
+# PlatformIO generated files
+# Keep platformio.ini tracked; it is the project manifest others need to build.
 .pio/
 .pioenvs/
 .piolibdeps/
-platformio.ini
+.pioinit
+libdeps/
 
-# Zephyr future workspace/build outputs
+# Zephyr / west generated workspace and build outputs
 .west/
 zephyr/build/
 zephyr/workspace/
-**/build/
+zephyr/.west/
 west.yml.lock
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+compile_commands.json
+*.cmake.user
 
-# Python/helper tooling
+# ESP-IDF / embedded toolchain generated outputs
+sdkconfig.old
+sdkconfig.bak
+managed_components/
+dependencies.lock
+
+# Python helper tooling
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 .venv/
 venv/
+env/
+ENV/
 
-# Secrets/local config
-.env
-*.local
-wifi_secrets.h
+# Node/web UI dependencies and build output, if a future portal UI is extracted
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+out/
+.next/
+.cache/
+.parcel-cache/
+
+# Test, coverage, and generated reports
+coverage/
+reports/
+artifacts/
+*.lcov
+
+# Archives and packaged release artifacts
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# Keep examples/templates visible even when their names overlap local-only rules
+!*.example
+!*.example.*
+!*.template
+!*.template.*
+!examples/**
+!docs/**
+!images/**
