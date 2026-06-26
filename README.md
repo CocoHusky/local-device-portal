@@ -7,8 +7,9 @@ Browser-based setup portal for ESP32 sensor devices, enabling Wi-Fi provisioning
 Arduino is the working MVP. Zephyr is the port.
 
 ```text
-Arduino setup: arduino/README.md
-Zephyr setup:  zephyr/README.md
+Whole repo: README.md
+Arduino:    arduino/README.md
+Zephyr:     zephyr/README.md
 ```
 
 ## User Flow
@@ -28,9 +29,6 @@ The numeric IP is treated as a backup only.
 │   ├── README.md
 │   └── local_device_portal/
 │       └── local_device_portal.ino
-├── scripts/
-│   ├── build-upload-arduino.sh
-│   └── build-zephyr.sh
 ├── zephyr/
 │   ├── README.md
 │   ├── west.yml
@@ -46,30 +44,22 @@ The numeric IP is treated as a backup only.
 
 ## Arduino
 
+Arduino is the working firmware path.
+
 ```text
 arduino/README.md
 ```
 
-Firmware:
+Working firmware:
 
 ```text
 arduino/local_device_portal/local_device_portal.ino
 ```
 
-Build and upload from macOS:
-
-```sh
-./scripts/build-upload-arduino.sh /dev/cu.usbmodem14401
-```
-
 ## Zephyr
+
+Zephyr is the active porting path.
 
 ```text
 zephyr/README.md
-```
-
-Build from a Zephyr `west` workspace:
-
-```sh
-./scripts/build-zephyr.sh
 ```

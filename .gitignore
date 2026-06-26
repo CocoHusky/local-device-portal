@@ -26,6 +26,7 @@ build/
 platformio.ini
 
 # Zephyr future workspace/build outputs
+.west/
 zephyr/build/
 zephyr/workspace/
 **/build/
