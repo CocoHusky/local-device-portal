@@ -6,6 +6,7 @@ on:
       - 'zephyr/**'
       - '.github/workflows/zephyr-build.yml'
       - 'scripts/**'
+      - 'docs/zephyr*.md'
   workflow_dispatch:
 
 jobs:
@@ -17,18 +18,29 @@ jobs:
         with:
           path: local-device-portal
 
+      - name: Install host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build gperf ccache dfu-util device-tree-compiler wget xz-utils file make gcc gcc-multilib g++-multilib libsdl2-dev libmagic1
+
       - name: Install west
         run: python3 -m pip install --user west
 
       - name: Initialize Zephyr workspace
         run: |
-          cd local-device-portal
-          west init -l zephyr
+          west init -l local-device-portal/zephyr
           west update
           west zephyr-export
-          python3 -m pip install --user -r ../zephyr/scripts/requirements.txt
+          python3 -m pip install --user -r zephyr/scripts/requirements.txt
+
+      - name: Install Zephyr SDK
+        run: |
+          wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.4/zephyr-sdk-0.17.4_linux-x86_64_minimal.tar.xz
+          tar xf zephyr-sdk-0.17.4_linux-x86_64_minimal.tar.xz
+          ./zephyr-sdk-0.17.4/setup.sh -t riscv64-zephyr-elf -h -c
+
+      - name: Fetch Espressif blobs
+        run: west blobs fetch hal_espressif || true
 
       - name: Build ESP32-C6 target
-        run: |
-          cd local-device-portal
-          west build -p=always -b xiao_esp32c6/esp32c6/hpcore zephyr/local_device_portal
+        run: west build -p=always -b xiao_esp32c6/esp32c6/hpcore local-device-portal/zephyr/local_device_portal
