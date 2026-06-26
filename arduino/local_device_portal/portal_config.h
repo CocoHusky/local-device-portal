@@ -253,10 +253,6 @@ void enrichOnlineDashboardData(bool force = false) {
 }
 
 String patchDashboardHtml(String body) {
-  // Keep the handoff in one tab: /handoff turns off setup AP, then the OS should
-  // reconnect to the saved Wi-Fi and the page redirects to the local dashboard.
-  body.replace("target='_blank' rel='noopener' href='", "href='");
-
   int start = body.indexOf("function fetchInternetTime");
   int end = body.indexOf("function refreshData", start);
 
@@ -303,8 +299,13 @@ void PortalWebServer::send(int code, const char* content_type, const String& con
   String type = content_type ? String(content_type) : String("");
   String body = content;
 
-  if (type.indexOf("text/html") >= 0 && body.indexOf("Browser online time request failed") >= 0) {
-    body = patchDashboardHtml(body);
+  if (type.indexOf("text/html") >= 0) {
+    // Keep setup handoff in the same tab instead of opening a stranded AP tab.
+    body.replace("target='_blank' rel='noopener' href='", "href='");
+
+    if (body.indexOf("Browser online time request failed") >= 0) {
+      body = patchDashboardHtml(body);
+    }
   } else if (type.indexOf("application/json") >= 0 && body.indexOf("\"online_summary\"") >= 0) {
     body = patchDataJson(body);
   }
