@@ -252,6 +252,58 @@ void enrichOnlineDashboardData(bool force = false) {
   onlineEnrichedOk = true;
 }
 
+String dashboardCopyControls() {
+  String h;
+  h += "<input id='dashUrl' readonly value='" + dashboardUrl + "' ";
+  h += "onclick='this.select()' style='font-size:.9rem;font-weight:800;color:#fff'>";
+  h += "<button class='btn-primary' type='button' onclick='copyDashUrl()'>Copy dashboard URL</button>";
+  h += "<p class='small'>After mmWave-Setup disappears, reconnect to your normal Wi-Fi, open a new browser tab, and paste this address.</p>";
+  h += "<script>function copyDashUrl(){var i=document.getElementById('dashUrl');if(!i)return;i.select();i.setSelectionRange(0,9999);if(navigator.clipboard){navigator.clipboard.writeText(i.value);}else{document.execCommand('copy');}}</script>";
+  return h;
+}
+
+void removeDashboardAutoRedirects(String& body) {
+  int metaStart = body.indexOf("<meta http-equiv='refresh'");
+  if (metaStart >= 0) {
+    int metaEnd = body.indexOf(">", metaStart);
+    if (metaEnd > metaStart) body.remove(metaStart, metaEnd - metaStart + 1);
+  }
+
+  int scriptStart = body.indexOf("<script>var dashboardUrl=");
+  if (scriptStart >= 0) {
+    int scriptEnd = body.indexOf("</script>", scriptStart);
+    if (scriptEnd > scriptStart) body.remove(scriptStart, scriptEnd - scriptStart + 9);
+  }
+}
+
+void patchSetupHandoffHtml(String& body) {
+  // Keep setup flow in the same captive-portal tab. Do not try to auto-open the
+  // local dashboard from the setup AP because captive portals often block it.
+  body.replace("target='_blank' rel='noopener' href='", "href='");
+
+  body.replace("Click below. A dashboard tab will open, the setup Wi-Fi will turn off, then your device should return to your normal Wi-Fi.",
+               "Click below to close the setup Wi-Fi. Copy the dashboard address first, then reconnect to your normal Wi-Fi and paste it into a browser.");
+  body.replace(">Go to dashboard</a>", ">Finish setup and close setup Wi-Fi</a>");
+
+  if (body.indexOf("Opening Dashboard") < 0 && body.indexOf("Opening dashboard") < 0) {
+    return;
+  }
+
+  removeDashboardAutoRedirects(body);
+
+  body.replace("<div class='card-title'>Opening dashboard</div>", "<div class='card-title'>Finish setup</div>");
+  body.replace("<h2>Switching Wi-Fi</h2>", "<h2>Setup Wi-Fi closing</h2>");
+  body.replace("<div class='spinner'></div>", "");
+  body.replace("<div class='countdown'>15 sec</div>", "");
+  body.replace("The setup Wi-Fi is turning off. Your device should reconnect to your normal Wi-Fi, then open the dashboard.",
+               "The setup Wi-Fi is turning off. Captive portal browsers can block automatic dashboard redirects, so this page will not redirect.");
+  body.replace("This can take a few seconds.",
+               "Copy the dashboard URL below. When mmWave-Setup disconnects, reconnect to your normal Wi-Fi and paste the URL into a normal browser tab.");
+
+  String openNow = "<a class='btn btn-primary' href='" + dashboardUrl + "'>Open dashboard now</a>";
+  body.replace(openNow, dashboardCopyControls());
+}
+
 String patchDashboardHtml(String body) {
   int start = body.indexOf("function fetchInternetTime");
   int end = body.indexOf("function refreshData", start);
@@ -300,8 +352,7 @@ void PortalWebServer::send(int code, const char* content_type, const String& con
   String body = content;
 
   if (type.indexOf("text/html") >= 0) {
-    // Keep setup handoff in the same tab instead of opening a stranded AP tab.
-    body.replace("target='_blank' rel='noopener' href='", "href='");
+    patchSetupHandoffHtml(body);
 
     if (body.indexOf("Browser online time request failed") >= 0) {
       body = patchDashboardHtml(body);
