@@ -52,3 +52,36 @@ String signalLabel(int rssi) {
   if (rssi >= -75) return "Fair";
   return "Weak";
 }
+
+String jsonValue(const String& body, const String& key) {
+  String marker = "\"" + key + "\":\"";
+  int start = body.indexOf(marker);
+
+  if (start < 0) return "";
+
+  start += marker.length();
+  int end = body.indexOf('"', start);
+
+  if (end < 0) return "";
+
+  return body.substring(start, end);
+}
+
+String formatUptime(unsigned long ms) {
+  unsigned long seconds = ms / 1000;
+  unsigned long days = seconds / 86400;
+  seconds %= 86400;
+  unsigned long hours = seconds / 3600;
+  seconds %= 3600;
+  unsigned long minutes = seconds / 60;
+  seconds %= 60;
+
+  String out;
+  if (days > 0) {
+    out += String(days) + "d ";
+  }
+  out += String(hours) + "h ";
+  out += String(minutes) + "m ";
+  out += String(seconds) + "s";
+  return out;
+}

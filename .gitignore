@@ -105,6 +105,7 @@ arduino-sketch-*/
 
 # Zephyr / west generated workspace and build outputs
 .west/
+deps/
 zephyr/build/
 zephyr/workspace/
 zephyr/.west/

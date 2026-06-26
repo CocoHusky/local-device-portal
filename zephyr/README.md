@@ -82,13 +82,13 @@ cd /Users/<username>/Documents/GitHub/local-device-portal
 west init -l zephyr
 west update
 west zephyr-export
-python3 -m pip install --user -r ../zephyr/scripts/requirements.txt
+python3 -m pip install --user -r deps/zephyr/scripts/requirements.txt
 ```
 
 After `west update`, the upstream Zephyr tree should be here:
 
 ```text
-/Users/<username>/Documents/GitHub/zephyr
+/Users/<username>/Documents/GitHub/local-device-portal/deps/zephyr
 ```
 
 ## Build
@@ -157,7 +157,7 @@ The Zephyr app should match Arduino:
 - If `west` is not found, add Python's user script directory to `PATH`.
 - If `west update` fails, confirm the machine has internet access and GitHub access.
 - If CMake cannot find Zephyr, run `west zephyr-export` from the workspace.
-- If Python modules are missing, rerun `python3 -m pip install --user -r ../zephyr/scripts/requirements.txt`.
+- If Python modules are missing, rerun `python3 -m pip install --user -r deps/zephyr/scripts/requirements.txt`.
 - If the board name is unknown, run `west boards | grep esp32c6` and update the `-b` value.
 - If flashing fails because the port is busy, close Serial Monitor, `screen`, or any other terminal using the USB port.
 - If the setup AP does not appear after flashing, reset the board and check serial logs at `115200`.

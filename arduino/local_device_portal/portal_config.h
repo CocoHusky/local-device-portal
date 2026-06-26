@@ -5,6 +5,7 @@
 #include <DNSServer.h>
 #include <Preferences.h>
 #include <ESPmDNS.h>
+#include <HTTPClient.h>
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -39,3 +40,10 @@ unsigned long handoffAt = 0;
 
 bool rebootFlag = false;
 unsigned long rebootAt = 0;
+
+String onlineSummary = "Not checked yet";
+String onlineSource = "ip-api.com";
+String onlineTimezone = "America/Chicago";
+bool onlineOk = false;
+unsigned long onlineUpdatedAt = 0;
+unsigned long lastOnlineFetchAt = 0;

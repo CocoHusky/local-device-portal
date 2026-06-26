@@ -25,7 +25,7 @@ jobs:
           west init -l zephyr
           west update
           west zephyr-export
-          python3 -m pip install --user -r ../zephyr/scripts/requirements.txt
+          python3 -m pip install --user -r deps/zephyr/scripts/requirements.txt
 
       - name: Build ESP32-C6 target
         run: |
