@@ -1,9 +1,15 @@
 # Scripts
 
-## Build Zephyr app
+## Arduino build and upload
 
 ```sh
-BOARD=xiao_esp32c6/esp32c6/hpcore ./scripts/build-zephyr.sh
+./scripts/build-upload-arduino.sh /dev/cu.usbmodem14401
 ```
 
-Run from a Zephyr workspace where `west` is available.
+## Zephyr build
+
+```sh
+./scripts/build-zephyr.sh
+```
+
+Run Zephyr commands from a `west` workspace.

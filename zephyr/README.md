@@ -1,36 +1,118 @@
 # Zephyr
 
-This directory contains the Zephyr port of the local-device portal.
+This directory contains the Zephyr port.
 
-## App path
+The Arduino sketch is still the UX reference implementation.
+
+## App Code
 
 ```text
 zephyr/local_device_portal
 ```
 
-## Target board
+## west Manifest
 
-Primary target from the existing ESP32-C6 work:
+```text
+zephyr/west.yml
+```
+
+Pinned Zephyr revision: `v4.4.0`
+
+## Target Board
+
+Default target:
 
 ```text
 xiao_esp32c6/esp32c6/hpcore
 ```
 
+Use a different ESP32-C6 board name if your hardware needs it.
+
+## Install on macOS
+
+Install tools:
+
+```sh
+brew install cmake ninja gperf ccache dtc python3
+python3 -m pip install --user west
+```
+
+Add Python user scripts to `PATH` if `west` is not found:
+
+```sh
+export PATH="$HOME/Library/Python/3.14/bin:$PATH"
+```
+
+Create a workspace:
+
+```sh
+mkdir -p /Users/alexburton/Documents/Codex/local-device-portal-zephyr
+cd /Users/alexburton/Documents/Codex/local-device-portal-zephyr
+git clone /Users/alexburton/Documents/GitHub/local-device-portal local-device-portal
+west init -l local-device-portal/zephyr
+west update
+west zephyr-export
+python3 -m pip install --user -r zephyr/scripts/requirements.txt
+```
+
+Install the Zephyr SDK:
+
+```text
+https://docs.zephyrproject.org/latest/develop/toolchains/zephyr_sdk.html
+```
+
 ## Build
 
-From a Zephyr workspace with `west` initialized:
+From the Zephyr workspace root:
+
+```sh
+cd /Users/alexburton/Documents/Codex/local-device-portal-zephyr
+./local-device-portal/scripts/build-zephyr.sh
+```
+
+Or directly:
 
 ```sh
 west build -p=always \
   -b xiao_esp32c6/esp32c6/hpcore \
-  zephyr/local_device_portal
+  local-device-portal/zephyr/local_device_portal
 ```
 
-For another ESP32-C6 board package, use the matching board name from your installed Zephyr tree.
+## Flash
+
+Connect the ESP32-C6 board over USB:
+
+```sh
+west flash --port /dev/cu.usbmodem14401
+```
+
+List ports:
+
+```sh
+ls /dev/cu.*
+```
+
+## Monitor
+
+```sh
+screen /dev/cu.usbmodem14401 115200
+```
+
+If your Zephyr tree provides the Espressif monitor extension:
+
+```sh
+west espressif monitor
+```
+
+## Board Check
+
+```sh
+west boards | grep esp32c6
+```
 
 ## Expected behavior
 
-The Zephyr app is intended to match the Arduino MVP behavior:
+The Zephyr app should match Arduino:
 
 - Setup AP: `mmWave-Setup`
 - Setup URL: `http://192.168.4.1/`
@@ -44,20 +126,12 @@ The Zephyr app is intended to match the Arduino MVP behavior:
 - Dashboard URL target: `http://mmwave-xxxx.local/`
 - Numeric IP fallback where mDNS is not available
 
-## Implementation note
+## Troubleshooting
 
-The Zephyr implementation uses raw Zephyr sockets for HTTP and DNS so the route behavior stays close to the Arduino MVP.
-
-## Hardware validation order
-
-ESP32-C6 AP+STA behavior can vary by Zephyr version and Espressif HAL state. Validate in this order:
-
-1. Board name exists in the installed Zephyr tree.
-2. Wi-Fi driver is enabled for that board.
-3. Setup AP starts.
-4. Client receives an IP from the DHCP server.
-5. HTTP page opens at `192.168.4.1`.
-6. Scan events return results.
-7. STA connect events return success.
-
-The Arduino sketch remains the UX reference implementation.
+- If `west` is not found, add Python's user script directory to `PATH`.
+- If `west update` fails, confirm the machine has internet access and GitHub access.
+- If CMake cannot find Zephyr, run `west zephyr-export` from the workspace.
+- If Python modules are missing, rerun `python3 -m pip install --user -r zephyr/scripts/requirements.txt`.
+- If the board name is unknown, run `west boards | grep esp32c6` and update the `-b` value.
+- If flashing fails because the port is busy, close Serial Monitor, `screen`, or any other terminal using the USB port.
+- If the setup AP does not appear after flashing, reset the board and check serial logs at `115200`.

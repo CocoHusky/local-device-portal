@@ -1,3 +1,0 @@
-# Zephyr marker
-
-Implementation marker.
