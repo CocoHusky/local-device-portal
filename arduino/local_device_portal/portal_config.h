@@ -7,6 +7,7 @@
 #include <ESPmDNS.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <time.h>
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -89,36 +90,93 @@ String portalJsonEscape(const String& s) {
   return out;
 }
 
-String portalJsonString(const String& body, const String& key) {
-  String marker = "\"" + key + "\":\"";
-  int start = body.indexOf(marker);
-  if (start < 0) return "";
-
-  start += marker.length();
-  int end = body.indexOf('"', start);
-  if (end < 0) return "";
-
-  return body.substring(start, end);
-}
-
-String portalJsonNumber(const String& body, const String& key) {
-  String marker = "\"" + key + "\":";
-  int start = body.indexOf(marker);
-  if (start < 0) return "";
-
-  start += marker.length();
-  int end = start;
-
-  while (end < (int)body.length()) {
-    char c = body[end];
-    if ((c >= '0' && c <= '9') || c == '-' || c == '.') {
-      end++;
+int portalSkipJsonWhitespace(const String& body, int pos) {
+  while (pos < (int)body.length()) {
+    char c = body[pos];
+    if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
+      pos++;
     } else {
       break;
     }
   }
 
-  return body.substring(start, end);
+  return pos;
+}
+
+String portalJsonString(const String& body, const String& key) {
+  String marker = "\"" + key + "\":";
+  int searchAt = 0;
+
+  while (true) {
+    int start = body.indexOf(marker, searchAt);
+    if (start < 0) return "";
+
+    start += marker.length();
+    start = portalSkipJsonWhitespace(body, start);
+
+    if (start < (int)body.length() && body[start] == '"') {
+      start++;
+      String out;
+
+      while (start < (int)body.length()) {
+        char c = body[start++];
+
+        if (c == '\\' && start < (int)body.length()) {
+          char escaped = body[start++];
+          if (escaped == 'n') out += '\n';
+          else if (escaped == 'r') out += '\r';
+          else if (escaped == 't') out += '\t';
+          else out += escaped;
+        } else if (c == '"') {
+          return out;
+        } else {
+          out += c;
+        }
+      }
+
+      return "";
+    }
+
+    searchAt = start + 1;
+  }
+}
+
+String portalJsonNumber(const String& body, const String& key) {
+  String marker = "\"" + key + "\":";
+  int searchAt = 0;
+
+  while (true) {
+    int start = body.indexOf(marker, searchAt);
+    if (start < 0) return "";
+
+    start += marker.length();
+    start = portalSkipJsonWhitespace(body, start);
+
+    if (start < (int)body.length()) {
+      char first = body[start];
+
+      if ((first >= '0' && first <= '9') || first == '-' || first == '.') {
+        int end = start;
+
+        while (end < (int)body.length()) {
+          char c = body[end];
+
+          if ((c >= '0' && c <= '9') || c == '-' || c == '.' || c == 'e' || c == 'E' || c == '+') {
+            end++;
+          } else {
+            break;
+          }
+        }
+
+        return body.substring(start, end);
+      }
+    }
+
+    // Some APIs include a string unit entry before the numeric data entry, for
+    // example Open-Meteo current_units.temperature_2m = "°F". Keep looking for
+    // the later numeric value instead of treating that as a missing number.
+    searchAt = start + 1;
+  }
 }
 
 String portalWeatherText(int code) {
@@ -130,6 +188,38 @@ String portalWeatherText(int code) {
   if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) return "snow";
   if (code >= 95 && code <= 99) return "thunderstorm";
   return "weather code " + String(code);
+}
+
+const char* portalPosixTimezone(const String& tz) {
+  if (tz == "America/Chicago") return "CST6CDT,M3.2.0/2,M11.1.0/2";
+  if (tz == "America/New_York" || tz == "America/Detroit" || tz == "America/Toronto") return "EST5EDT,M3.2.0/2,M11.1.0/2";
+  if (tz == "America/Denver") return "MST7MDT,M3.2.0/2,M11.1.0/2";
+  if (tz == "America/Phoenix") return "MST7";
+  if (tz == "America/Los_Angeles") return "PST8PDT,M3.2.0/2,M11.1.0/2";
+  if (tz == "America/Anchorage") return "AKST9AKDT,M3.2.0/2,M11.1.0/2";
+  if (tz == "Pacific/Honolulu") return "HST10";
+  if (tz == "UTC" || tz == "Etc/UTC") return "UTC0";
+
+  // Fallback keeps the dashboard from failing if ip-api returns an IANA zone
+  // that is not in this small embedded map.
+  return "UTC0";
+}
+
+String portalFormattedDeviceTime(const String& tz) {
+  const char* tzRule = portalPosixTimezone(tz);
+  configTzTime(tzRule, "pool.ntp.org", "time.nist.gov", "time.google.com");
+
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo, 4500)) {
+    return "";
+  }
+
+  char buf[40];
+  strftime(buf, sizeof(buf), "%Y-%m-%d %I:%M:%S %p", &timeinfo);
+
+  String out = String(buf);
+  if (tz.length()) out += " " + tz;
+  return out;
 }
 
 bool portalHttpGet(const String& url, String& body, unsigned long timeoutMs = 5500) {
@@ -179,28 +269,17 @@ void enrichOnlineDashboardData(bool force = false) {
   lastOnlineEnrichedFetchAt = millis();
   onlineEnrichedOk = false;
 
-  String tz = onlineTimezone.length() ? onlineTimezone : String("America/Chicago");
-  String timeBody;
-  String timeUrl = "https://worldtimeapi.org/api/timezone/" + tz;
-
-  if (portalHttpGet(timeUrl, timeBody)) {
-    String dt = portalJsonString(timeBody, "datetime");
-    if (!dt.length()) dt = portalJsonString(timeBody, "utc_datetime");
-    onlineDeviceTime = dt.length() ? dt : "time response missing datetime";
-    onlineEnrichedOk = dt.length() > 0;
-  } else {
-    onlineDeviceTime = "device time request failed";
-  }
-
   String geoBody;
   if (!portalHttpGet("http://ip-api.com/json/?fields=status,message,country,regionName,city,timezone,lat,lon,query", geoBody)) {
     onlineWeather = "location lookup failed";
+    onlineDeviceTime = "location/time lookup failed";
     return;
   }
 
   String geoStatus = portalJsonString(geoBody, "status");
   if (geoStatus != "success") {
     onlineWeather = "location lookup returned an error";
+    onlineDeviceTime = "location/time lookup returned an error";
     return;
   }
 
@@ -219,6 +298,24 @@ void enrichOnlineDashboardData(bool force = false) {
   }
   if (!onlineWeatherLocation.length()) onlineWeatherLocation = "detected location";
 
+  String tz = onlineTimezone.length() ? onlineTimezone : String("America/Chicago");
+  String ntpTime = portalFormattedDeviceTime(tz);
+
+  if (ntpTime.length()) {
+    onlineDeviceTime = ntpTime;
+  } else {
+    String timeBody;
+    String timeUrl = "http://worldtimeapi.org/api/timezone/" + tz;
+
+    if (portalHttpGet(timeUrl, timeBody)) {
+      String dt = portalJsonString(timeBody, "datetime");
+      if (!dt.length()) dt = portalJsonString(timeBody, "utc_datetime");
+      onlineDeviceTime = dt.length() ? dt : "time response missing datetime";
+    } else {
+      onlineDeviceTime = "device NTP and time API request failed";
+    }
+  }
+
   if (!lat.length() || !lon.length()) {
     onlineWeather = "location missing lat/lon";
     return;
@@ -227,6 +324,7 @@ void enrichOnlineDashboardData(bool force = false) {
   String weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
                       "&longitude=" + lon +
                       "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m" +
+                      "&current_weather=true" +
                       "&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto";
 
   String weatherBody;
@@ -239,6 +337,11 @@ void enrichOnlineDashboardData(bool force = false) {
   String feels = portalJsonNumber(weatherBody, "apparent_temperature");
   String wind = portalJsonNumber(weatherBody, "wind_speed_10m");
   String code = portalJsonNumber(weatherBody, "weather_code");
+
+  // Fallback for Open-Meteo's compact current_weather object.
+  if (!temp.length()) temp = portalJsonNumber(weatherBody, "temperature");
+  if (!wind.length()) wind = portalJsonNumber(weatherBody, "windspeed");
+  if (!code.length()) code = portalJsonNumber(weatherBody, "weathercode");
 
   if (!temp.length()) {
     onlineWeather = "weather response missing temperature";
@@ -322,7 +425,7 @@ String patchDashboardHtml(String body) {
   }
 
   body.replace("if(d.online_ok){fetchInternetTime(d.online_timezone,d.online_summary);}else{browserOnlineFallback(d.online_summary,d.online_timezone);}",
-               "setOnline(d.online_ok?'ok':'err',deviceOnlineRows(d));");
+               "setOnline((d.online_ok&&d.online_enriched_ok)?'ok':'info',deviceOnlineRows(d));");
 
   return body;
 }
