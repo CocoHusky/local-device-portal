@@ -103,14 +103,6 @@ build-*/
 .arduino15/
 arduino-sketch-*/
 
-# PlatformIO generated files
-# Keep platformio.ini tracked; it is the project manifest others need to build.
-.pio/
-.pioenvs/
-.piolibdeps/
-.pioinit
-libdeps/
-
 # Zephyr / west generated workspace and build outputs
 .west/
 zephyr/build/
