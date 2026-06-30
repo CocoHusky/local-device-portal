@@ -1,17 +1,15 @@
 #include "credential_store.h"
 #include "portal_config.h"
-#include "portal_dns.h"
 #include "portal_http.h"
 #include "portal_state.h"
 #include "wifi_manager.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/sys/reboot.h>
 
 LOG_MODULE_REGISTER(local_device_portal, LOG_LEVEL_INF);
 
-#define FW_MARKER "zephyr-arduino-style-portal-2026-06-30-01"
+#define FW_MARKER "zephyr-portal-http-main-probe-2026-06-30-01"
 
 int main(void)
 {
@@ -26,41 +24,21 @@ int main(void)
 	LOG_INF("setup URL: http://%s/", PORTAL_AP_IP);
 	LOG_INF("dashboard URL target: %s", portal_state_dashboard_url());
 
-	/* Arduino reference flow:
-	 *   WiFi.mode(WIFI_AP_STA);
-	 *   WiFi.softAPConfig(AP_IP, AP_IP, AP_MASK);
-	 *   WiFi.softAP(setupApSsid.c_str(), AP_PASS);
-	 *   dns.start(DNS_PORT, "*", AP_IP);
-	 *   server.begin();
-	 *
-	 * Zephyr follows the same order with Zephyr APIs: AP IP first, AP enable,
-	 * DHCP, then global DNS and global HTTP listeners.
-	 */
 	int ret = wifi_manager_start_ap();
 	if (ret != 0) {
 		LOG_ERR("setup AP failed: %d", ret);
+		while (true) {
+			k_sleep(K_SECONDS(1));
+		}
 	}
 
-	portal_dns_start();
+	/* Debug mode: run HTTP first and do not start DNS/handoff yet.  The standalone
+	 * AP TCP probe works when the accept loop is the primary foreground task.
+	 * Match that shape here so we can isolate portal DNS/state side effects.
+	 */
 	portal_http_start();
 
-	/* Keep setup mode AP-only until HTTP is proven stable on WROOM.  This keeps
-	 * the portal path closest to Arduino's known-working setup page behavior.
-	 */
-	if (credential_store_has_ssid()) {
-		LOG_INF("saved network present but STA auto-connect disabled during setup debug: %s",
-			credential_store_ssid());
-	}
-
 	while (true) {
-		if (portal_state_take_handoff_request()) {
-			k_sleep(K_MSEC(1800));
-			wifi_manager_stop_ap();
-		}
-		if (portal_state_take_reboot_request()) {
-			k_sleep(K_SECONDS(1));
-			sys_reboot(SYS_REBOOT_COLD);
-		}
 		k_sleep(K_SECONDS(1));
 	}
 
