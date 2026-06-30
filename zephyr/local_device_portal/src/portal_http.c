@@ -1,6 +1,7 @@
 #include "portal_http.h"
 
 #include "portal_config.h"
+#include "portal_render.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -41,8 +42,30 @@ static int open_listener(void)
 		return -err;
 	}
 
-	LOG_INF("HTTP minimal listener ready on 0.0.0.0:%u", PORTAL_HTTP_PORT);
+	LOG_INF("HTTP portal listener ready on 0.0.0.0:%u", PORTAL_HTTP_PORT);
 	return fd;
+}
+
+static void send_setup_page(int client)
+{
+	static char page[PORTAL_PAGE_MAX];
+	char header[192];
+
+	portal_render_setup(page, sizeof(page));
+	int body_len = strlen(page);
+
+	int header_len = snprintk(header, sizeof(header),
+		"HTTP/1.1 200 OK\r\n"
+		"Content-Type: text/html; charset=utf-8\r\n"
+		"Cache-Control: no-store\r\n"
+		"Connection: close\r\n"
+		"Content-Length: %d\r\n"
+		"\r\n",
+		body_len);
+
+	LOG_INF("HTTP sending setup page: %d bytes", body_len);
+	zsock_send(client, header, header_len, 0);
+	zsock_send(client, page, body_len, 0);
 }
 
 static void http_thread(void)
@@ -63,25 +86,14 @@ static void http_thread(void)
 
 		LOG_INF("HTTP client accepted");
 
-		char req[128];
+		char req[256];
 		int n = zsock_recv(client, req, sizeof(req) - 1, 0);
 		if (n > 0) {
 			req[n] = '\0';
 			LOG_INF("HTTP rx: %.80s", req);
 		}
 
-		const char body[] = "hello from portal minimal tcp probe\n";
-		char header[160];
-		int header_len = snprintk(header, sizeof(header),
-			"HTTP/1.1 200 OK\r\n"
-			"Content-Type: text/plain\r\n"
-			"Connection: close\r\n"
-			"Content-Length: %u\r\n"
-			"\r\n",
-			(unsigned int)(sizeof(body) - 1));
-
-		zsock_send(client, header, header_len, 0);
-		zsock_send(client, body, sizeof(body) - 1, 0);
+		send_setup_page(client);
 		zsock_close(client);
 	}
 }
@@ -91,5 +103,5 @@ K_THREAD_DEFINE(http_tid, 8192, http_thread, NULL, NULL, NULL, 5, 0, SYS_FOREVER
 void portal_http_start(void)
 {
 	k_thread_start(http_tid);
-	LOG_INF("HTTP minimal service started on port %u", PORTAL_HTTP_PORT);
+	LOG_INF("HTTP portal service started on port %u", PORTAL_HTTP_PORT);
 }
