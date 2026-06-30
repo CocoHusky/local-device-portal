@@ -46,6 +46,34 @@ static struct net_if *sta_iface(void)
 	return iface ? iface : net_if_get_default();
 }
 
+static void log_wifi_ifaces(const char *stage)
+{
+	LOG_INF("%s interfaces: default=%p sta=%p sap=%p selected_ap=%p",
+		stage,
+		net_if_get_default(),
+		net_if_get_wifi_sta(),
+		net_if_get_wifi_sap(),
+		ap_net_iface);
+}
+
+static void log_iface_ipv4(const char *label, struct net_if *iface)
+{
+	if (iface == NULL || iface->config.ip.ipv4 == NULL) {
+		LOG_WRN("%s IPv4: interface unavailable", label);
+		return;
+	}
+
+	for (int i = 0; i < NET_IF_MAX_IPV4_ADDR; i++) {
+		if (iface->config.ip.ipv4->unicast[i].ipv4.is_used) {
+			char ip[NET_IPV4_ADDR_LEN];
+			net_addr_ntop(AF_INET,
+				      &iface->config.ip.ipv4->unicast[i].ipv4.address.in_addr,
+				      ip, sizeof(ip));
+			LOG_INF("%s IPv4[%d]=%s iface=%p", label, i, ip, iface);
+		}
+	}
+}
+
 static int configure_ap_ipv4(struct net_if *iface)
 {
 	struct in_addr addr;
@@ -84,6 +112,7 @@ static int configure_ap_ipv4(struct net_if *iface)
 	}
 
 	LOG_INF("setup AP IPv4 ready on interface %p: %s/%s", iface, PORTAL_AP_IP, PORTAL_AP_MASK);
+	log_iface_ipv4("setup AP", iface);
 	return 0;
 }
 
@@ -132,12 +161,17 @@ static void wifi_event_handler(struct net_mgmt_event_callback *cb,
 	if (mgmt_event == NET_EVENT_WIFI_CONNECT_RESULT) {
 		const struct wifi_status *status = cb->info;
 		sta_connected = (status == NULL || status->status == 0);
+		LOG_INF("STA connect result: status=%d connected=%s iface=%p",
+			status ? status->status : 0,
+			sta_connected ? "yes" : "no",
+			iface);
 		k_sem_give(&connect_done_sem);
 		return;
 	}
 
 	if (mgmt_event == NET_EVENT_WIFI_DISCONNECT_RESULT) {
 		sta_connected = false;
+		LOG_INF("STA disconnected iface=%p", iface);
 		return;
 	}
 }
@@ -150,25 +184,34 @@ void wifi_manager_init(void)
 		NET_EVENT_WIFI_CONNECT_RESULT |
 		NET_EVENT_WIFI_DISCONNECT_RESULT);
 	net_mgmt_add_event_callback(&wifi_cb);
+	log_wifi_ifaces("wifi init");
 }
 
 int wifi_manager_start_ap(void)
 {
 	struct net_if *iface = net_if_get_wifi_sap();
 
-	/* On ESP32 targets the SAP interface can be unavailable until AP mode is
-	 * enabled. Use the default Wi-Fi interface only for AP enable, then resolve
-	 * the SAP interface again before assigning 192.168.4.1 and starting DHCP.
-	 * This prevents the setup IP from being attached to STA while AP clients are
-	 * connected to a different Zephyr net_if.
-	 */
+	log_wifi_ifaces("before AP start");
+
 	if (iface == NULL) {
 		iface = net_if_get_default();
-		LOG_WRN("SAP interface not ready before AP enable; using default interface for AP enable");
+		LOG_WRN("SAP interface not reported yet; using default interface for AP mode");
 	}
 
 	if (iface == NULL) {
+		LOG_ERR("no Wi-Fi interface available for setup AP");
 		return -ENODEV;
+	}
+
+	ap_net_iface = iface;
+
+	/* Match Arduino order: softAPConfig() before softAP().  ESP32 Zephyr is more
+	 * sensitive to which net_if owns 192.168.4.1 than Arduino, so keep the same
+	 * AP net_if for config, AP enable, DHCP, DNS, and HTTP diagnostics.
+	 */
+	int ret = configure_ap_ipv4(ap_net_iface);
+	if (ret != 0) {
+		return ret;
 	}
 
 	struct wifi_connect_req_params ap = { 0 };
@@ -180,29 +223,19 @@ int wifi_manager_start_ap(void)
 	ap.channel = 6;
 	ap.band = WIFI_FREQ_BAND_2_4_GHZ;
 
-	int ret = net_mgmt(NET_REQUEST_WIFI_AP_ENABLE, iface, &ap, sizeof(ap));
+	ret = net_mgmt(NET_REQUEST_WIFI_AP_ENABLE, ap_net_iface, &ap, sizeof(ap));
 	if (ret != 0) {
 		LOG_ERR("AP enable failed: %d", ret);
 		return ret;
 	}
 
-	LOG_INF("setup AP enabled: %s / %s", portal_state_ap_ssid(), PORTAL_AP_IP);
+	LOG_INF("setup AP enabled: ssid=%s pass=%s ip=%s iface=%p",
+		portal_state_ap_ssid(), PORTAL_AP_PASS, PORTAL_AP_IP, ap_net_iface);
 
-	/* Give the ESP32 SAP interface time to finish coming up before binding the
-	 * IPv4 address and DHCP server to the interface that AP clients actually use.
-	 */
 	k_sleep(K_MSEC(1000));
 
-	struct net_if *sap_iface = net_if_get_wifi_sap();
-	if (sap_iface != NULL) {
-		iface = sap_iface;
-	}
-	ap_net_iface = iface;
-
-	ret = configure_ap_ipv4(ap_net_iface);
-	if (ret != 0) {
-		return ret;
-	}
+	log_wifi_ifaces("after AP enable");
+	log_iface_ipv4("setup AP after enable", ap_net_iface);
 
 #if defined(CONFIG_NET_DHCPV4_SERVER)
 	struct in_addr dhcp_start;
@@ -212,14 +245,15 @@ int wifi_manager_start_ap(void)
 			LOG_ERR("DHCP server start failed: %d", ret);
 			return ret;
 		}
-		LOG_INF("setup DHCP started: %s", PORTAL_DHCP_START_IP);
+		LOG_INF("setup DHCP started: start=%s iface=%p", PORTAL_DHCP_START_IP, ap_net_iface);
 	} else {
 		LOG_ERR("invalid DHCP start IP: %s", PORTAL_DHCP_START_IP);
 		return -EINVAL;
 	}
 #endif
 
-	LOG_INF("setup AP ready: %s / %s", portal_state_ap_ssid(), PORTAL_AP_IP);
+	LOG_INF("SETUP PORTAL READY: join %s, password %s, open http://%s/",
+		portal_state_ap_ssid(), PORTAL_AP_PASS, PORTAL_AP_IP);
 	return 0;
 }
 
@@ -298,6 +332,7 @@ int wifi_manager_scan_blocking(void)
 		}
 	}
 
+	LOG_INF("scan complete: %d networks", scan_count);
 	return 0;
 }
 
@@ -319,16 +354,20 @@ int wifi_manager_connect_blocking(const char *ssid, const char *pass)
 	k_sem_reset(&connect_done_sem);
 	sta_connected = false;
 
+	LOG_INF("STA connect start: ssid=%s iface=%p", ssid, iface);
 	int ret = net_mgmt(NET_REQUEST_WIFI_CONNECT, iface, &cnx, sizeof(cnx));
 	if (ret != 0) {
+		LOG_ERR("STA connect request failed: %d", ret);
 		return ret;
 	}
 
 	ret = k_sem_take(&connect_done_sem, K_SECONDS(25));
 	if (ret != 0) {
+		LOG_ERR("STA connect timed out: %d", ret);
 		return ret;
 	}
 
+	wifi_manager_local_ip((char [NET_IPV4_ADDR_LEN]){0}, NET_IPV4_ADDR_LEN);
 	return sta_connected ? 0 : -ECONNREFUSED;
 }
 
@@ -355,6 +394,7 @@ void wifi_manager_local_ip(char *out, size_t out_len)
 			net_addr_ntop(AF_INET,
 				      &iface->config.ip.ipv4->unicast[i].ipv4.address.in_addr,
 				      out, out_len);
+			LOG_INF("STA local IPv4=%s iface=%p", out, iface);
 			return;
 		}
 	}
