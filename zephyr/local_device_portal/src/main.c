@@ -9,7 +9,7 @@
 
 LOG_MODULE_REGISTER(local_device_portal, LOG_LEVEL_INF);
 
-#define FW_MARKER "zephyr-portal-http-main-probe-2026-06-30-01"
+#define FW_MARKER "zephyr-portal-http-cached-scan-2026-06-30-01"
 
 int main(void)
 {
@@ -24,7 +24,12 @@ int main(void)
 	LOG_INF("setup URL: http://%s/", PORTAL_AP_IP);
 	LOG_INF("dashboard URL target: %s", portal_state_dashboard_url());
 
-	int ret = wifi_manager_start_ap();
+	int ret = wifi_manager_scan_blocking();
+	if (ret != 0) {
+		LOG_WRN("pre-AP Wi-Fi scan failed; manual entry remains available: %d", ret);
+	}
+
+	ret = wifi_manager_start_ap();
 	if (ret != 0) {
 		LOG_ERR("setup AP failed: %d", ret);
 		while (true) {
