@@ -161,37 +161,103 @@ static void close_client(int client)
 	LOG_INF("HTTP client closed; returning to accept");
 }
 
+static bool method_is(const char *req, const char *method)
+{
+	size_t len = strlen(method);
+
+	return strncmp(req, method, len) == 0 && req[len] == ' ';
+}
+
+static void request_path(const char *req, char *path, size_t path_len)
+{
+	const char *uri;
+	const char *uri_end;
+	char uri_buf[160];
+	size_t uri_len;
+
+	if (path_len == 0) {
+		return;
+	}
+
+	strncpy(path, "/", path_len);
+	path[path_len - 1] = '\0';
+
+	uri = strchr(req, ' ');
+	if (uri == NULL) {
+		return;
+	}
+	uri++;
+
+	uri_end = strchr(uri, ' ');
+	if (uri_end == NULL) {
+		return;
+	}
+
+	uri_len = (size_t)(uri_end - uri);
+	if (uri_len >= sizeof(uri_buf)) {
+		uri_len = sizeof(uri_buf) - 1;
+	}
+	memcpy(uri_buf, uri, uri_len);
+	uri_buf[uri_len] = '\0';
+
+	if (strncmp(uri_buf, "http://", 7) == 0 || strncmp(uri_buf, "https://", 8) == 0) {
+		const char *scheme_end = strstr(uri_buf, "://");
+		const char *slash = scheme_end ? strchr(scheme_end + 3, '/') : NULL;
+		if (slash == NULL) {
+			strncpy(path, "/", path_len);
+		} else {
+			strncpy(path, slash, path_len);
+		}
+	} else if (uri_buf[0] == '/') {
+		strncpy(path, uri_buf, path_len);
+	}
+
+	path[path_len - 1] = '\0';
+}
+
+static bool path_is(const char *path, const char *route)
+{
+	size_t len = strlen(route);
+
+	return strncmp(path, route, len) == 0 &&
+		(path[len] == '\0' || path[len] == '?' || path[len] == '#');
+}
+
 static void handle_request(const char *req)
 {
 	char ssid[PORTAL_SSID_MAX + 1];
 	char pass[PORTAL_PASS_MAX + 1];
+	char path[160];
 
-	if (strncmp(req, "GET /scan-results", 17) == 0) {
+	request_path(req, path, sizeof(path));
+	LOG_INF("HTTP path: %s", path);
+
+	if (method_is(req, "GET") && path_is(path, "/scan-results")) {
 		LOG_INF("HTTP route: scan-results");
 		portal_render_scan_results(page, sizeof(page));
 		return;
 	}
 
-	if (strncmp(req, "GET /scan", 9) == 0) {
+	if (method_is(req, "GET") && path_is(path, "/scan")) {
 		LOG_INF("HTTP route: scan");
 		portal_render_scan(page, sizeof(page));
 		return;
 	}
 
-	if (strncmp(req, "GET /manual", 11) == 0) {
+	if (method_is(req, "GET") && path_is(path, "/manual")) {
 		LOG_INF("HTTP route: manual");
 		portal_render_manual(page, sizeof(page), NULL);
 		return;
 	}
 
-	if (strncmp(req, "GET /pick", 9) == 0) {
+	if (method_is(req, "GET") && path_is(path, "/pick")) {
 		LOG_INF("HTTP route: pick");
 		get_param(req, "ssid", ssid, sizeof(ssid));
 		portal_render_pick(page, sizeof(page), ssid, NULL);
 		return;
 	}
 
-	if (strncmp(req, "POST /connect", 13) == 0) {
+	if (method_is(req, "POST") && path_is(path, "/connect")) {
 		LOG_INF("HTTP route: connect");
 		get_param(req, "ssid", ssid, sizeof(ssid));
 		get_param(req, "pass", pass, sizeof(pass));
