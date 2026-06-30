@@ -259,7 +259,7 @@ static void handle_http_client(int client)
 	send_response(client, page);
 }
 
-static int http_bind_and_listen(const char *ip, const char *label)
+static int http_bind_and_listen(const char *ip, uint16_t port, const char *label)
 {
 	int server_fd = zsock_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (server_fd < 0) {
@@ -272,7 +272,7 @@ static int http_bind_and_listen(const char *ip, const char *label)
 
 	struct sockaddr_in addr = { 0 };
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(PORTAL_HTTP_PORT);
+	addr.sin_port = htons(port);
 
 	if (net_addr_pton(AF_INET, ip, &addr.sin_addr) != 0) {
 		LOG_ERR("http invalid bind address %s", ip);
@@ -282,36 +282,32 @@ static int http_bind_and_listen(const char *ip, const char *label)
 
 	if (zsock_bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		int err = errno;
-		LOG_ERR("http bind failed for %s (%s:%d): errno=%d", label, ip, PORTAL_HTTP_PORT, err);
+		LOG_ERR("http bind failed for %s (%s:%u): errno=%d", label, ip, port, err);
 		zsock_close(server_fd);
 		return -err;
 	}
 
 	if (zsock_listen(server_fd, 4) < 0) {
 		int err = errno;
-		LOG_ERR("http listen failed for %s (%s:%d): errno=%d", label, ip, PORTAL_HTTP_PORT, err);
+		LOG_ERR("http listen failed for %s (%s:%u): errno=%d", label, ip, port, err);
 		zsock_close(server_fd);
 		return -err;
 	}
 
-	LOG_INF("HTTP server listening on %s:%d (%s)", ip, PORTAL_HTTP_PORT, label);
+	LOG_INF("HTTP server listening on %s:%u (%s)", ip, port, label);
 	return server_fd;
 }
 
-static void http_thread(void)
+static void http_server_loop(uint16_t port, const char *label)
 {
-	/* The setup AP is proven reachable by ICMP at 192.168.4.1.  Bind the HTTP
-	 * socket directly to that AP address instead of INADDR_ANY so Zephyr cannot
-	 * attach the listener only to the STA/default path while AP clients get RST.
-	 */
-	int server_fd = http_bind_and_listen(PORTAL_AP_IP, "setup AP");
+	int server_fd = http_bind_and_listen(PORTAL_AP_IP, port, label);
 	if (server_fd < 0) {
-		LOG_WRN("HTTP AP bind failed, falling back to 0.0.0.0");
-		server_fd = http_bind_and_listen("0.0.0.0", "fallback any");
+		LOG_WRN("HTTP %s AP bind failed, falling back to 0.0.0.0", label);
+		server_fd = http_bind_and_listen("0.0.0.0", port, label);
 	}
 
 	if (server_fd < 0) {
-		LOG_ERR("HTTP server did not start");
+		LOG_ERR("HTTP %s server did not start", label);
 		return;
 	}
 
@@ -320,7 +316,8 @@ static void http_thread(void)
 		socklen_t peer_len = sizeof(peer);
 		int client = zsock_accept(server_fd, (struct sockaddr *)&peer, &peer_len);
 		if (client >= 0) {
-			LOG_INF("HTTP client accepted from %u.%u.%u.%u",
+			LOG_INF("HTTP %s client accepted from %u.%u.%u.%u",
+				label,
 				(uint8_t)(ntohl(peer.sin_addr.s_addr) >> 24),
 				(uint8_t)(ntohl(peer.sin_addr.s_addr) >> 16),
 				(uint8_t)(ntohl(peer.sin_addr.s_addr) >> 8),
@@ -328,16 +325,28 @@ static void http_thread(void)
 			handle_http_client(client);
 			zsock_close(client);
 		} else {
-			LOG_WRN("HTTP accept failed: errno=%d", errno);
+			LOG_WRN("HTTP %s accept failed: errno=%d", label, errno);
 			k_sleep(K_MSEC(100));
 		}
 	}
 }
 
-K_THREAD_DEFINE(http_tid, 8192, http_thread, NULL, NULL, NULL, 5, 0, SYS_FOREVER_MS);
+static void http80_thread(void)
+{
+	http_server_loop(PORTAL_HTTP_PORT, "primary");
+}
+
+static void http8080_thread(void)
+{
+	http_server_loop(PORTAL_HTTP_FALLBACK_PORT, "fallback");
+}
+
+K_THREAD_DEFINE(http80_tid, 8192, http80_thread, NULL, NULL, NULL, 5, 0, SYS_FOREVER_MS);
+K_THREAD_DEFINE(http8080_tid, 8192, http8080_thread, NULL, NULL, NULL, 5, 0, SYS_FOREVER_MS);
 
 void portal_http_start(void)
 {
-	k_thread_start(http_tid);
-	LOG_INF("HTTP service started");
+	k_thread_start(http80_tid);
+	k_thread_start(http8080_tid);
+	LOG_INF("HTTP services started on ports %u and %u", PORTAL_HTTP_PORT, PORTAL_HTTP_FALLBACK_PORT);
 }
