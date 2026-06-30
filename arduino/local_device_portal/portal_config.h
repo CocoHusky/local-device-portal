@@ -9,6 +9,8 @@
 #include <WiFiClientSecure.h>
 #include <time.h>
 
+#include "portal_utils.h"
+
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const char* AP_SSID_PREFIX = "mmWave";
