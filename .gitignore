@@ -106,9 +106,13 @@ arduino-sketch-*/
 # Zephyr / west generated workspace and build outputs
 .west/
 deps/
+modules/
+tools/
+bootloader/
 zephyr/build/
 zephyr/workspace/
 zephyr/.west/
+zephyr/.git/
 west.yml.lock
 CMakeCache.txt
 CMakeFiles/
