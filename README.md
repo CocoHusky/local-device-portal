@@ -25,7 +25,7 @@ public IPs, timestamps, dashboard IDs, and location data are intentionally remov
     <td width="50%" valign="top">
       <h3>1. Setup portal</h3>
       <p>The device starts its setup access point and serves the local portal at <code>http://192.168.4.1/</code>.</p>
-      <img src="assets/portal/portal-step-setup.svg" alt="Setup portal screen" width="100%" />
+      <img src="assets/portal/portal-step-setup.png" alt="Setup portal screen" width="100%" />
     </td>
     <td width="50%" valign="top">
       <h3>2. Network scan</h3>
