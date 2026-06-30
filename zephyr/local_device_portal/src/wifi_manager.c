@@ -22,21 +22,26 @@ LOG_MODULE_REGISTER(wifi_manager, LOG_LEVEL_INF);
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
 
 #define WIFI_EVENT_MASK \
-	(NET_EVENT_WIFI_CONNECT_RESULT | \
+	(NET_EVENT_WIFI_SCAN_RESULT | \
+	 NET_EVENT_WIFI_SCAN_DONE | \
+	 NET_EVENT_WIFI_CONNECT_RESULT | \
 	 NET_EVENT_WIFI_DISCONNECT_RESULT | \
 	 NET_EVENT_WIFI_AP_ENABLE_RESULT | \
 	 NET_EVENT_WIFI_AP_DISABLE_RESULT | \
 	 NET_EVENT_WIFI_AP_STA_CONNECTED | \
 	 NET_EVENT_WIFI_AP_STA_DISCONNECTED)
 
+static struct portal_net scan_results[PORTAL_MAX_NETS];
+static int scan_count;
+static bool scan_cached;
+static bool ap_enabled;
 static bool sta_connected;
 static struct net_if *ap_net_iface;
 static struct net_if *sta_net_iface;
 
+static K_SEM_DEFINE(scan_done_sem, 0, 1);
 static K_SEM_DEFINE(connect_done_sem, 0, 1);
 static struct net_mgmt_event_callback wifi_cb;
-
-static const struct portal_net empty_scan_results[1];
 
 static struct net_if *ap_iface(void)
 {
@@ -73,6 +78,49 @@ static void log_iface_ipv4(const char *label, struct net_if *iface)
 				      &iface->config.ip.ipv4->unicast[i].ipv4.address.in_addr,
 				      ip, sizeof(ip));
 			LOG_INF("%s IPv4[%d]=%s iface=%p", label, i, ip, iface);
+		}
+	}
+}
+
+static void remember_scan_result(const struct wifi_scan_result *entry)
+{
+	if (entry == NULL || scan_count >= PORTAL_MAX_NETS) {
+		return;
+	}
+
+	int ssid_len = MIN((int)entry->ssid_length, PORTAL_SSID_MAX);
+	if (ssid_len <= 0) {
+		return;
+	}
+
+	for (int i = 0; i < scan_count; i++) {
+		if (strlen(scan_results[i].ssid) == (size_t)ssid_len &&
+		    memcmp(scan_results[i].ssid, entry->ssid, ssid_len) == 0) {
+			if (entry->rssi > scan_results[i].rssi) {
+				scan_results[i].rssi = entry->rssi;
+				scan_results[i].secure =
+					entry->security != WIFI_SECURITY_TYPE_NONE;
+			}
+			return;
+		}
+	}
+
+	memcpy(scan_results[scan_count].ssid, entry->ssid, ssid_len);
+	scan_results[scan_count].ssid[ssid_len] = '\0';
+	scan_results[scan_count].rssi = entry->rssi;
+	scan_results[scan_count].secure = entry->security != WIFI_SECURITY_TYPE_NONE;
+	scan_count++;
+}
+
+static void sort_scan_results(void)
+{
+	for (int i = 0; i < scan_count; i++) {
+		for (int j = i + 1; j < scan_count; j++) {
+			if (scan_results[j].rssi > scan_results[i].rssi) {
+				struct portal_net tmp = scan_results[i];
+				scan_results[i] = scan_results[j];
+				scan_results[j] = tmp;
+			}
 		}
 	}
 }
@@ -141,6 +189,13 @@ static void wifi_event_handler(struct net_mgmt_event_callback *cb,
 			       uint64_t mgmt_event, struct net_if *iface)
 {
 	switch (mgmt_event) {
+	case NET_EVENT_WIFI_SCAN_RESULT:
+		remember_scan_result(cb->info);
+		break;
+	case NET_EVENT_WIFI_SCAN_DONE:
+		scan_cached = true;
+		k_sem_give(&scan_done_sem);
+		break;
 	case NET_EVENT_WIFI_CONNECT_RESULT: {
 		const struct wifi_status *status = cb->info;
 
@@ -157,9 +212,11 @@ static void wifi_event_handler(struct net_mgmt_event_callback *cb,
 		LOG_INF("STA disconnected iface=%p", iface);
 		break;
 	case NET_EVENT_WIFI_AP_ENABLE_RESULT:
+		ap_enabled = true;
 		LOG_INF("AP mode is enabled; waiting for setup client to connect");
 		break;
 	case NET_EVENT_WIFI_AP_DISABLE_RESULT:
+		ap_enabled = false;
 		LOG_INF("AP mode is disabled");
 		break;
 	case NET_EVENT_WIFI_AP_STA_CONNECTED: {
@@ -241,6 +298,7 @@ int wifi_manager_start_ap(void)
 		return ret;
 	}
 
+	ap_enabled = true;
 	LOG_INF("setup AP enabled: ssid=%s pass=%s iface=%p",
 		portal_state_ap_ssid(), PORTAL_AP_PASS, ap_net_iface);
 	LOG_INF("SETUP PORTAL READY: join %s, password %s, open http://%s/",
@@ -288,6 +346,7 @@ int wifi_manager_stop_ap(void)
 	if (ret != 0) {
 		LOG_WRN("AP disable failed: %d", ret);
 	} else {
+		ap_enabled = false;
 		ap_net_iface = NULL;
 	}
 
@@ -296,17 +355,49 @@ int wifi_manager_stop_ap(void)
 
 int wifi_manager_scan_blocking(void)
 {
-	/* The upstream Zephyr AP-STA sample does not run a Wi-Fi scan while the AP is
-	 * serving setup clients. On ESP32 AP-STA, an active scan can retune the radio
-	 * and drop the phone from the setup AP, so /scan is intentionally a safe no-op.
+	struct net_if *iface = sta_iface();
+	int ret;
+
+	/* Do not run a live scan while the setup AP is serving the user's phone.
+	 * AP and STA share one ESP32 radio, so all-channel scanning can interrupt
+	 * the AP path. Instead, scan once before AP mode starts and serve the cached
+	 * results from /scan.
 	 */
-	LOG_WRN("live scan skipped to keep setup AP connected; use manual SSID entry");
-	return -ENOTSUP;
+	if (ap_enabled) {
+		LOG_INF("serving cached scan results while AP is enabled: %d networks", scan_count);
+		return scan_cached ? 0 : -EALREADY;
+	}
+
+	if (iface == NULL) {
+		return -ENODEV;
+	}
+
+	scan_count = 0;
+	scan_cached = false;
+	k_sem_reset(&scan_done_sem);
+
+	ret = net_mgmt(NET_REQUEST_WIFI_SCAN, iface, NULL, 0);
+	if (ret != 0) {
+		LOG_WRN("pre-AP Wi-Fi scan request failed: %d", ret);
+		return ret;
+	}
+
+	ret = k_sem_take(&scan_done_sem, K_SECONDS(12));
+	if (ret != 0) {
+		LOG_WRN("pre-AP Wi-Fi scan timed out: %d", ret);
+		return ret;
+	}
+
+	sort_scan_results();
+	LOG_INF("pre-AP Wi-Fi scan cached: %d networks", scan_count);
+	return 0;
 }
 
 int wifi_manager_connect_blocking(const char *ssid, const char *pass)
 {
 	struct net_if *iface = sta_iface();
+	int ret;
+
 	if (iface == NULL) {
 		LOG_ERR("STA interface is not initialized");
 		return -ENODEV;
@@ -325,8 +416,8 @@ int wifi_manager_connect_blocking(const char *ssid, const char *pass)
 	sta_connected = false;
 
 	LOG_INF("STA connect start: ssid=%s iface=%p", ssid, iface);
-	int ret = net_mgmt(NET_REQUEST_WIFI_CONNECT, iface, &cnx,
-			   sizeof(struct wifi_connect_req_params));
+	ret = net_mgmt(NET_REQUEST_WIFI_CONNECT, iface, &cnx,
+		       sizeof(struct wifi_connect_req_params));
 	if (ret != 0) {
 		LOG_ERR("NET_REQUEST_WIFI_CONNECT failed: %d", ret);
 		return ret;
@@ -374,10 +465,10 @@ void wifi_manager_local_ip(char *out, size_t out_len)
 
 const struct portal_net *wifi_manager_scan_results(void)
 {
-	return empty_scan_results;
+	return scan_results;
 }
 
 int wifi_manager_scan_count(void)
 {
-	return 0;
+	return scan_count;
 }
