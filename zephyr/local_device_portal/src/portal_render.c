@@ -7,6 +7,7 @@
 
 #include <zephyr/net/net_ip.h>
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -202,23 +203,74 @@ void portal_render_manual(char *buf, size_t cap, const char *error)
 
 void portal_render_scan(char *buf, size_t cap)
 {
-	int scan_ret = wifi_manager_scan_blocking();
+	int ret = wifi_manager_scan_start();
+	size_t off = 0;
+
+	page_header(buf, cap, &off, "Scanning");
+	page_append(buf, cap, &off, "<meta http-equiv='refresh' content='4;url=/scan-results'>");
+	status_card(buf, cap, &off);
+	steps(buf, cap, &off, 1);
+	page_append(buf, cap, &off,
+		"<div class='card'><div class='title'>Step 1 of 3</div><h2>Scanning networks</h2>"
+		"<div class='spin'></div>");
+
+	if (ret == -EALREADY) {
+		page_append(buf, cap, &off,
+			"<p>A scan is already running. Results will refresh when it finishes.</p>");
+	} else if (ret != 0) {
+		page_append(buf, cap, &off,
+			"<p class='bad'>Could not start Wi-Fi scan (%d).</p>", ret);
+	} else {
+		page_append(buf, cap, &off,
+			"<p>Refreshing the network list. Your device may briefly pause while the ESP32 radio scans.</p>");
+	}
+
+	page_append(buf, cap, &off,
+		"<a class='btn primary' href='/scan-results'>Show results</a>"
+		"<a class='btn ghost' href='/manual'>Type network manually</a></div>");
+	bottom_actions(buf, cap, &off);
+	page_footer(buf, cap, &off);
+}
+
+void portal_render_scan_results(char *buf, size_t cap)
+{
+	enum portal_scan_state state = wifi_manager_scan_state();
 	int scan_count = wifi_manager_scan_count();
 	const struct portal_net *scan_results = wifi_manager_scan_results();
-
 	size_t off = 0;
+
 	page_header(buf, cap, &off, "Scan Results");
 	status_card(buf, cap, &off);
 	steps(buf, cap, &off, 1);
 	page_append(buf, cap, &off,
 		"<div class='card'><div class='title'>Step 1 of 3</div><h2>Choose Wi-Fi</h2>");
 
-	if (scan_ret != 0) {
+	if (state == PORTAL_SCAN_IDLE) {
 		page_append(buf, cap, &off,
-			"<p class='bad'>Wi-Fi scan results are not ready (%d).</p>"
-			"<p class='muted'>Use manual entry, or reboot the device to run a fresh pre-AP scan.</p>"
+			"<p>No scan has run yet.</p>"
+			"<form method='GET' action='/scan'><button>Scan networks</button></form>"
+			"<a class='btn ghost' href='/manual'>Type network manually</a></div>");
+		bottom_actions(buf, cap, &off);
+		page_footer(buf, cap, &off);
+		return;
+	}
+
+	if (state == PORTAL_SCAN_RUNNING) {
+		page_append(buf, cap, &off,
+			"<meta http-equiv='refresh' content='3;url=/scan-results'>"
+			"<div class='spin'></div><p>Still scanning. This page will refresh.</p>"
+			"<a class='btn ghost' href='/manual'>Type network manually</a></div>");
+		bottom_actions(buf, cap, &off);
+		page_footer(buf, cap, &off);
+		return;
+	}
+
+	if (state == PORTAL_SCAN_FAILED) {
+		page_append(buf, cap, &off,
+			"<p class='bad'>Wi-Fi scan failed (%d).</p>"
+			"<form method='GET' action='/scan'><button>Scan again</button></form>"
 			"<a class='btn ghost' href='/manual'>Type network manually</a></div>",
-			scan_ret);
+			wifi_manager_scan_last_error());
 		bottom_actions(buf, cap, &off);
 		page_footer(buf, cap, &off);
 		return;
@@ -226,17 +278,15 @@ void portal_render_scan(char *buf, size_t cap)
 
 	if (scan_count <= 0) {
 		page_append(buf, cap, &off,
-			"<p class='bad'>No cached networks found.</p>"
-			"<p class='muted'>Use manual entry, or reboot the device to scan again before setup Wi-Fi starts.</p>"
+			"<p class='bad'>No networks found.</p>"
+			"<form method='GET' action='/scan'><button>Scan again</button></form>"
 			"<a class='btn ghost' href='/manual'>Type network manually</a></div>");
 		bottom_actions(buf, cap, &off);
 		page_footer(buf, cap, &off);
 		return;
 	}
 
-	page_append(buf, cap, &off,
-		"<p>Tap your network. These results were captured before setup Wi-Fi started so your phone stays connected.</p>");
-
+	page_append(buf, cap, &off, "<p>Tap your network.</p>");
 	for (int i = 0; i < scan_count; i++) {
 		char esc[96];
 		html_escape(scan_results[i].ssid, esc, sizeof(esc));
@@ -251,7 +301,7 @@ void portal_render_scan(char *buf, size_t cap)
 	}
 
 	page_append(buf, cap, &off,
-		"<hr><p class='small'>To refresh this list safely, reboot the device so it scans before the setup AP starts.</p>"
+		"<hr><form method='GET' action='/scan'><button class='ghost'>Scan again</button></form>"
 		"<a class='btn ghost' href='/manual'>Type network manually</a></div>");
 	bottom_actions(buf, cap, &off);
 	page_footer(buf, cap, &off);
