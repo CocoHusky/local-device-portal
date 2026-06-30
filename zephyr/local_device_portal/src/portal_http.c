@@ -115,19 +115,10 @@ static bool get_param(const char *src, const char *name, char *out, size_t out_l
 static void send_page(int client, const char *body)
 {
 	char header[192];
-
 	int body_len = strlen(body);
-
 	int header_len = snprintk(header, sizeof(header),
-		"HTTP/1.1 200 OK\r\n"
-		"Content-Type: text/html; charset=utf-8\r\n"
-		"Cache-Control: no-store\r\n"
-		"Connection: close\r\n"
-		"Content-Length: %d\r\n"
-		"\r\n",
+		"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nConnection: close\r\nContent-Length: %d\r\n\r\n",
 		body_len);
-
-	LOG_INF("HTTP sending page: %d bytes", body_len);
 
 	const char *chunks[] = { header, body };
 	int lens[] = { header_len, body_len };
@@ -135,7 +126,6 @@ static void send_page(int client, const char *body)
 	for (int i = 0; i < ARRAY_SIZE(chunks); i++) {
 		const char *data = chunks[i];
 		int remaining = lens[i];
-
 		while (remaining > 0) {
 			int sent = zsock_send(client, data, remaining, 0);
 			if (sent <= 0) {
@@ -151,13 +141,11 @@ static void send_page(int client, const char *body)
 static void close_client(int client)
 {
 	zsock_close(client);
-	LOG_INF("HTTP client closed; returning to accept");
 }
 
 static bool method_is(const char *req, const char *method)
 {
 	size_t len = strlen(method);
-
 	return strncmp(req, method, len) == 0 && req[len] == ' ';
 }
 
@@ -196,11 +184,7 @@ static void request_path(const char *req, char *path, size_t path_len)
 	if (strncmp(uri_buf, "http://", 7) == 0 || strncmp(uri_buf, "https://", 8) == 0) {
 		const char *scheme_end = strstr(uri_buf, "://");
 		const char *slash = scheme_end ? strchr(scheme_end + 3, '/') : NULL;
-		if (slash == NULL) {
-			strncpy(path, "/", path_len);
-		} else {
-			strncpy(path, slash, path_len);
-		}
+		strncpy(path, slash ? slash : "/", path_len);
 	} else if (uri_buf[0] == '/') {
 		strncpy(path, uri_buf, path_len);
 	}
@@ -211,7 +195,6 @@ static void request_path(const char *req, char *path, size_t path_len)
 static bool path_is(const char *path, const char *route)
 {
 	size_t len = strlen(route);
-
 	return strncmp(path, route, len) == 0 &&
 		(path[len] == '\0' || path[len] == '?' || path[len] == '#');
 }
@@ -225,33 +208,38 @@ static void handle_request(const char *req)
 	request_path(req, path, sizeof(path));
 	LOG_INF("HTTP path: %s", path);
 
+	if (method_is(req, "GET") && path_is(path, "/dashboard")) {
+		portal_render_dashboard(page, sizeof(page));
+		return;
+	}
+
+	if (method_is(req, "GET") && path_is(path, "/") && wifi_manager_sta_connected()) {
+		portal_render_dashboard(page, sizeof(page));
+		return;
+	}
+
 	if (method_is(req, "GET") && path_is(path, "/scan-results")) {
-		LOG_INF("HTTP route: scan-results");
 		portal_render_scan_results(page, sizeof(page));
 		return;
 	}
 
 	if (method_is(req, "GET") && path_is(path, "/scan")) {
-		LOG_INF("HTTP route: scan");
 		portal_render_scan(page, sizeof(page));
 		return;
 	}
 
 	if (method_is(req, "GET") && path_is(path, "/manual")) {
-		LOG_INF("HTTP route: manual");
 		portal_render_manual(page, sizeof(page), NULL);
 		return;
 	}
 
 	if (method_is(req, "GET") && path_is(path, "/pick")) {
-		LOG_INF("HTTP route: pick");
 		get_param(req, "ssid", ssid, sizeof(ssid));
 		portal_render_pick(page, sizeof(page), ssid, NULL);
 		return;
 	}
 
 	if (method_is(req, "POST") && path_is(path, "/connect")) {
-		LOG_INF("HTTP route: connect");
 		get_param(req, "ssid", ssid, sizeof(ssid));
 		get_param(req, "pass", pass, sizeof(pass));
 		if (ssid[0] == '\0') {
@@ -269,7 +257,6 @@ static void handle_request(const char *req)
 		return;
 	}
 
-	LOG_INF("HTTP route: setup");
 	portal_render_setup(page, sizeof(page));
 }
 
@@ -284,10 +271,8 @@ static int recv_request(int client, char *req, size_t req_len)
 		if (n <= 0) {
 			return total > 0 ? total : n;
 		}
-
 		total += n;
 		req[total] = '\0';
-
 		if (header_end == NULL) {
 			header_end = strstr(req, "\r\n\r\n");
 			if (header_end != NULL) {
@@ -301,7 +286,6 @@ static int recv_request(int client, char *req, size_t req_len)
 				}
 			}
 		}
-
 		if (header_end != NULL) {
 			int header_len = (int)(header_end - req) + 4;
 			if (total >= header_len + content_len) {
@@ -330,12 +314,9 @@ static void http_thread(void)
 			continue;
 		}
 
-		LOG_INF("HTTP client accepted");
-
 		char req[PORTAL_REQ_MAX];
 		int n = recv_request(client, req, sizeof(req));
 		if (n > 0) {
-			LOG_INF("HTTP rx (%d bytes): %.120s", n, req);
 			handle_request(req);
 			send_page(client, page);
 		} else {
