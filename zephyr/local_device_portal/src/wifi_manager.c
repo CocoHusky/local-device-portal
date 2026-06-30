@@ -33,12 +33,14 @@ LOG_MODULE_REGISTER(wifi_manager, LOG_LEVEL_INF);
 
 static struct portal_net scan_results[PORTAL_MAX_NETS];
 static int scan_count;
-static bool scan_cached;
+static enum portal_scan_state scan_state = PORTAL_SCAN_IDLE;
+static int scan_last_error;
 static bool ap_enabled;
 static bool sta_connected;
 static struct net_if *ap_net_iface;
 static struct net_if *sta_net_iface;
 
+static K_SEM_DEFINE(scan_request_sem, 0, 1);
 static K_SEM_DEFINE(scan_done_sem, 0, 1);
 static K_SEM_DEFINE(connect_done_sem, 0, 1);
 static struct net_mgmt_event_callback wifi_cb;
@@ -125,6 +127,58 @@ static void sort_scan_results(void)
 	}
 }
 
+static int scan_once_blocking(const char *label)
+{
+	struct net_if *iface = sta_iface();
+	int ret;
+
+	if (iface == NULL) {
+		return -ENODEV;
+	}
+
+	scan_count = 0;
+	k_sem_reset(&scan_done_sem);
+
+	LOG_INF("Wi-Fi scan start: %s iface=%p ap_enabled=%s",
+		label, iface, ap_enabled ? "yes" : "no");
+
+	ret = net_mgmt(NET_REQUEST_WIFI_SCAN, iface, NULL, 0);
+	if (ret != 0) {
+		LOG_WRN("Wi-Fi scan request failed: %d", ret);
+		return ret;
+	}
+
+	ret = k_sem_take(&scan_done_sem, K_SECONDS(12));
+	if (ret != 0) {
+		LOG_WRN("Wi-Fi scan timed out: %d", ret);
+		return ret;
+	}
+
+	sort_scan_results();
+	LOG_INF("Wi-Fi scan done: %d networks", scan_count);
+	return 0;
+}
+
+static void scan_thread(void *p1, void *p2, void *p3)
+{
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
+	while (true) {
+		k_sem_take(&scan_request_sem, K_FOREVER);
+
+		scan_state = PORTAL_SCAN_RUNNING;
+		scan_last_error = 0;
+
+		int ret = scan_once_blocking("button refresh");
+		scan_last_error = ret;
+		scan_state = (ret == 0) ? PORTAL_SCAN_DONE : PORTAL_SCAN_FAILED;
+	}
+}
+
+K_THREAD_DEFINE(scan_tid, 4096, scan_thread, NULL, NULL, NULL, 7, 0, SYS_FOREVER_MS);
+
 static int configure_ap_ipv4(struct net_if *iface)
 {
 	struct in_addr addr;
@@ -193,7 +247,6 @@ static void wifi_event_handler(struct net_mgmt_event_callback *cb,
 		remember_scan_result(cb->info);
 		break;
 	case NET_EVENT_WIFI_SCAN_DONE:
-		scan_cached = true;
 		k_sem_give(&scan_done_sem);
 		break;
 	case NET_EVENT_WIFI_CONNECT_RESULT: {
@@ -255,6 +308,7 @@ void wifi_manager_init(void)
 	ap_net_iface = net_if_get_wifi_sap();
 	sta_net_iface = net_if_get_wifi_sta();
 
+	k_thread_start(scan_tid);
 	log_wifi_ifaces("wifi init");
 }
 
@@ -353,44 +407,27 @@ int wifi_manager_stop_ap(void)
 	return ret;
 }
 
+int wifi_manager_scan_start(void)
+{
+	if (scan_state == PORTAL_SCAN_RUNNING) {
+		return -EALREADY;
+	}
+
+	scan_state = PORTAL_SCAN_RUNNING;
+	scan_last_error = 0;
+	k_sem_give(&scan_request_sem);
+	return 0;
+}
+
 int wifi_manager_scan_blocking(void)
 {
-	struct net_if *iface = sta_iface();
-	int ret;
+	scan_state = PORTAL_SCAN_RUNNING;
+	scan_last_error = 0;
 
-	/* Do not run a live scan while the setup AP is serving the user's phone.
-	 * AP and STA share one ESP32 radio, so all-channel scanning can interrupt
-	 * the AP path. Instead, scan once before AP mode starts and serve the cached
-	 * results from /scan.
-	 */
-	if (ap_enabled) {
-		LOG_INF("serving cached scan results while AP is enabled: %d networks", scan_count);
-		return scan_cached ? 0 : -EALREADY;
-	}
-
-	if (iface == NULL) {
-		return -ENODEV;
-	}
-
-	scan_count = 0;
-	scan_cached = false;
-	k_sem_reset(&scan_done_sem);
-
-	ret = net_mgmt(NET_REQUEST_WIFI_SCAN, iface, NULL, 0);
-	if (ret != 0) {
-		LOG_WRN("pre-AP Wi-Fi scan request failed: %d", ret);
-		return ret;
-	}
-
-	ret = k_sem_take(&scan_done_sem, K_SECONDS(12));
-	if (ret != 0) {
-		LOG_WRN("pre-AP Wi-Fi scan timed out: %d", ret);
-		return ret;
-	}
-
-	sort_scan_results();
-	LOG_INF("pre-AP Wi-Fi scan cached: %d networks", scan_count);
-	return 0;
+	int ret = scan_once_blocking("blocking refresh");
+	scan_last_error = ret;
+	scan_state = (ret == 0) ? PORTAL_SCAN_DONE : PORTAL_SCAN_FAILED;
+	return ret;
 }
 
 int wifi_manager_connect_blocking(const char *ssid, const char *pass)
@@ -461,6 +498,16 @@ void wifi_manager_local_ip(char *out, size_t out_len)
 			return;
 		}
 	}
+}
+
+enum portal_scan_state wifi_manager_scan_state(void)
+{
+	return scan_state;
+}
+
+int wifi_manager_scan_last_error(void)
+{
+	return scan_last_error;
 }
 
 const struct portal_net *wifi_manager_scan_results(void)
