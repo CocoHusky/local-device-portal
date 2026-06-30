@@ -1,17 +1,15 @@
 #include "credential_store.h"
 #include "portal_config.h"
-#include "portal_dns.h"
 #include "portal_http.h"
 #include "portal_state.h"
 #include "wifi_manager.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/sys/reboot.h>
 
 LOG_MODULE_REGISTER(local_device_portal, LOG_LEVEL_INF);
 
-#define FW_MARKER "zephyr-captive-dns-routes-2026-06-30-01"
+#define FW_MARKER "zephyr-portal-http-main-probe-2026-06-30-01"
 
 int main(void)
 {
@@ -34,23 +32,9 @@ int main(void)
 		}
 	}
 
-	portal_dns_start();
 	portal_http_start();
 
-	if (credential_store_has_ssid()) {
-		LOG_INF("saved network present but STA auto-connect disabled during setup debug: %s",
-			credential_store_ssid());
-	}
-
 	while (true) {
-		if (portal_state_take_handoff_request()) {
-			k_sleep(K_MSEC(1800));
-			wifi_manager_stop_ap();
-		}
-		if (portal_state_take_reboot_request()) {
-			k_sleep(K_SECONDS(1));
-			sys_reboot(SYS_REBOOT_COLD);
-		}
 		k_sleep(K_SECONDS(1));
 	}
 

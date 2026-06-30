@@ -207,19 +207,13 @@ int wifi_manager_start_ap(void)
 	net_if_set_default(ap_net_iface);
 	LOG_INF("setup AP selected as default net_if: %p", ap_net_iface);
 
-	/* Zephyr ESP32 creates/attaches AP L2 state during AP_ENABLE.  Arduino calls
-	 * softAPConfig() before softAP(), but on Zephyr the TCP demux can refuse AP
-	 * client SYNs if IPv4 was only assigned before AP_ENABLE.  Enable AP first,
-	 * then assign 192.168.4.1 to the fully active AP net_if, then start DHCP and
-	 * the Arduino-style global DNS/HTTP listeners.
-	 */
 	struct wifi_connect_req_params ap = { 0 };
 	ap.ssid = (const uint8_t *)portal_state_ap_ssid();
 	ap.ssid_length = strlen(portal_state_ap_ssid());
 	ap.psk = (const uint8_t *)PORTAL_AP_PASS;
 	ap.psk_length = strlen(PORTAL_AP_PASS);
 	ap.security = WIFI_SECURITY_TYPE_PSK;
-	ap.channel = 6;
+	ap.channel = WIFI_CHANNEL_ANY;
 	ap.band = WIFI_FREQ_BAND_2_4_GHZ;
 
 	int ret = net_if_up(ap_net_iface);
@@ -228,26 +222,10 @@ int wifi_manager_start_ap(void)
 		return ret;
 	}
 
-	ret = net_mgmt(NET_REQUEST_WIFI_AP_ENABLE, ap_net_iface, &ap, sizeof(ap));
-	if (ret != 0) {
-		LOG_ERR("AP enable failed: %d", ret);
-		return ret;
-	}
-
-	LOG_INF("setup AP enabled: ssid=%s pass=%s iface=%p",
-		portal_state_ap_ssid(), PORTAL_AP_PASS, ap_net_iface);
-
-	k_sleep(K_MSEC(1000));
-
-	log_wifi_ifaces("after AP enable before IPv4");
-
 	ret = configure_ap_ipv4(ap_net_iface);
 	if (ret != 0) {
 		return ret;
 	}
-
-	k_sleep(K_MSEC(250));
-	log_iface_ipv4("setup AP after IPv4", ap_net_iface);
 
 #if defined(CONFIG_NET_DHCPV4_SERVER)
 	struct in_addr dhcp_start;
@@ -263,6 +241,15 @@ int wifi_manager_start_ap(void)
 		return -EINVAL;
 	}
 #endif
+
+	ret = net_mgmt(NET_REQUEST_WIFI_AP_ENABLE, ap_net_iface, &ap, sizeof(ap));
+	if (ret != 0) {
+		LOG_ERR("AP enable failed: %d", ret);
+		return ret;
+	}
+
+	LOG_INF("setup AP enabled: ssid=%s pass=%s iface=%p",
+		portal_state_ap_ssid(), PORTAL_AP_PASS, ap_net_iface);
 
 	LOG_INF("SETUP PORTAL READY: join %s, password %s, open http://%s/",
 		portal_state_ap_ssid(), PORTAL_AP_PASS, PORTAL_AP_IP);
