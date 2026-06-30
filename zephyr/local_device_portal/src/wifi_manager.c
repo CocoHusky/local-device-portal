@@ -396,6 +396,8 @@ int wifi_manager_scan_blocking(void)
 int wifi_manager_connect_blocking(const char *ssid, const char *pass)
 {
 	struct net_if *iface = sta_iface();
+	int ret;
+
 	if (iface == NULL) {
 		LOG_ERR("STA interface is not initialized");
 		return -ENODEV;
