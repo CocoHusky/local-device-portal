@@ -22,6 +22,7 @@ LOG_MODULE_REGISTER(wifi_manager, LOG_LEVEL_INF);
 static struct portal_net scan_results[PORTAL_MAX_NETS];
 static int scan_count;
 static bool sta_connected;
+static struct net_if *ap_net_iface;
 
 static K_SEM_DEFINE(scan_done_sem, 0, 1);
 static K_SEM_DEFINE(connect_done_sem, 0, 1);
@@ -29,6 +30,10 @@ static struct net_mgmt_event_callback wifi_cb;
 
 static struct net_if *ap_iface(void)
 {
+	if (ap_net_iface != NULL) {
+		return ap_net_iface;
+	}
+
 	struct net_if *iface = net_if_get_wifi_sap();
 
 	return iface ? iface : net_if_get_default();
@@ -45,6 +50,11 @@ static int configure_ap_ipv4(struct net_if *iface)
 {
 	struct in_addr addr;
 	struct in_addr mask;
+	int ret;
+
+	if (iface == NULL) {
+		return -ENODEV;
+	}
 
 	if (net_addr_pton(AF_INET, PORTAL_AP_IP, &addr) != 0) {
 		LOG_ERR("invalid setup AP IP: %s", PORTAL_AP_IP);
@@ -56,10 +66,16 @@ static int configure_ap_ipv4(struct net_if *iface)
 		return -EINVAL;
 	}
 
+	ret = net_if_up(iface);
+	if (ret < 0 && ret != -EALREADY) {
+		LOG_ERR("setup AP interface up failed: %d", ret);
+		return ret;
+	}
+
 	net_if_ipv4_set_gw(iface, &addr);
 
 	if (net_if_ipv4_addr_add(iface, &addr, NET_ADDR_MANUAL, 0) == NULL) {
-		LOG_WRN("setup AP IP may already be assigned: %s", PORTAL_AP_IP);
+		LOG_WRN("setup AP IP may already be assigned on selected interface: %s", PORTAL_AP_IP);
 	}
 
 	if (!net_if_ipv4_set_netmask_by_addr(iface, &addr, &mask)) {
@@ -67,6 +83,7 @@ static int configure_ap_ipv4(struct net_if *iface)
 		return -EIO;
 	}
 
+	LOG_INF("setup AP IPv4 ready on interface %p: %s/%s", iface, PORTAL_AP_IP, PORTAL_AP_MASK);
 	return 0;
 }
 
@@ -137,14 +154,21 @@ void wifi_manager_init(void)
 
 int wifi_manager_start_ap(void)
 {
-	struct net_if *iface = ap_iface();
+	struct net_if *iface = net_if_get_wifi_sap();
+
+	/* On ESP32 targets the SAP interface can be unavailable until AP mode is
+	 * enabled. Use the default Wi-Fi interface only for AP enable, then resolve
+	 * the SAP interface again before assigning 192.168.4.1 and starting DHCP.
+	 * This prevents the setup IP from being attached to STA while AP clients are
+	 * connected to a different Zephyr net_if.
+	 */
 	if (iface == NULL) {
-		return -ENODEV;
+		iface = net_if_get_default();
+		LOG_WRN("SAP interface not ready before AP enable; using default interface for AP enable");
 	}
 
-	int ret = configure_ap_ipv4(iface);
-	if (ret != 0) {
-		return ret;
+	if (iface == NULL) {
+		return -ENODEV;
 	}
 
 	struct wifi_connect_req_params ap = { 0 };
@@ -156,7 +180,7 @@ int wifi_manager_start_ap(void)
 	ap.channel = 6;
 	ap.band = WIFI_FREQ_BAND_2_4_GHZ;
 
-	ret = net_mgmt(NET_REQUEST_WIFI_AP_ENABLE, iface, &ap, sizeof(ap));
+	int ret = net_mgmt(NET_REQUEST_WIFI_AP_ENABLE, iface, &ap, sizeof(ap));
 	if (ret != 0) {
 		LOG_ERR("AP enable failed: %d", ret);
 		return ret;
@@ -164,13 +188,26 @@ int wifi_manager_start_ap(void)
 
 	LOG_INF("setup AP enabled: %s / %s", portal_state_ap_ssid(), PORTAL_AP_IP);
 
-	/* Give the ESP32 SAP interface time to finish coming up before DHCP starts. */
-	k_sleep(K_MSEC(300));
+	/* Give the ESP32 SAP interface time to finish coming up before binding the
+	 * IPv4 address and DHCP server to the interface that AP clients actually use.
+	 */
+	k_sleep(K_MSEC(1000));
+
+	struct net_if *sap_iface = net_if_get_wifi_sap();
+	if (sap_iface != NULL) {
+		iface = sap_iface;
+	}
+	ap_net_iface = iface;
+
+	ret = configure_ap_ipv4(ap_net_iface);
+	if (ret != 0) {
+		return ret;
+	}
 
 #if defined(CONFIG_NET_DHCPV4_SERVER)
 	struct in_addr dhcp_start;
 	if (net_addr_pton(AF_INET, PORTAL_DHCP_START_IP, &dhcp_start) == 0) {
-		ret = net_dhcpv4_server_start(iface, &dhcp_start);
+		ret = net_dhcpv4_server_start(ap_net_iface, &dhcp_start);
 		if (ret != 0 && ret != -EALREADY) {
 			LOG_ERR("DHCP server start failed: %d", ret);
 			return ret;
@@ -224,6 +261,8 @@ int wifi_manager_stop_ap(void)
 	int ret = net_mgmt(NET_REQUEST_WIFI_AP_DISABLE, iface, NULL, 0);
 	if (ret != 0) {
 		LOG_WRN("AP disable failed: %d", ret);
+	} else {
+		ap_net_iface = NULL;
 	}
 
 	return ret;
