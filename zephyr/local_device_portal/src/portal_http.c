@@ -265,7 +265,7 @@ static void http_thread(void)
 	}
 
 	int opt = 1;
-	zsock_setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	zsock_setsockopt(server_fd, ZSOCK_SOL_SOCKET, ZSOCK_SO_REUSEADDR, &opt, sizeof(opt));
 	(void)wifi_manager_bind_socket_to_ap(server_fd);
 
 	struct sockaddr_in addr = { 0 };
