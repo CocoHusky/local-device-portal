@@ -6,6 +6,7 @@
 void portal_render_setup(char *buf, size_t cap);
 void portal_render_manual(char *buf, size_t cap, const char *error);
 void portal_render_scan(char *buf, size_t cap);
+void portal_render_scan_results(char *buf, size_t cap);
 void portal_render_pick(char *buf, size_t cap, const char *ssid,
 			const char *error);
 void portal_render_success(char *buf, size_t cap, const char *ssid);
