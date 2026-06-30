@@ -1,6 +1,7 @@
 #include "portal_dns.h"
 
 #include "portal_config.h"
+#include "wifi_manager.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -19,6 +20,8 @@ static void dns_thread(void)
 		LOG_ERR("dns socket failed: %d", errno);
 		return;
 	}
+
+	(void)wifi_manager_bind_socket_to_ap(fd);
 
 	struct sockaddr_in addr = { 0 };
 	addr.sin_family = AF_INET;
@@ -77,9 +80,10 @@ static void dns_thread(void)
 	}
 }
 
-K_THREAD_DEFINE(dns_tid, 4096, dns_thread, NULL, NULL, NULL, 5, 0, 0);
+K_THREAD_DEFINE(dns_tid, 4096, dns_thread, NULL, NULL, NULL, 5, 0, SYS_FOREVER_MS);
 
 void portal_dns_start(void)
 {
-	LOG_INF("DNS service scheduled");
+	k_thread_start(dns_tid);
+	LOG_INF("DNS service started");
 }

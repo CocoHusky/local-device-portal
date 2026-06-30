@@ -1,10 +1,11 @@
 #ifndef PORTAL_CONFIG_H
 #define PORTAL_CONFIG_H
 
-#define PORTAL_AP_SSID      "mmWave-Setup"
+#define PORTAL_AP_SSID_PREFIX "mmWave"
 #define PORTAL_AP_PASS      "focusfetch"
 #define PORTAL_AP_IP        "192.168.4.1"
 #define PORTAL_AP_MASK      "255.255.255.0"
+#define PORTAL_DHCP_START_IP "192.168.4.2"
 
 #define PORTAL_HTTP_PORT    80
 #define PORTAL_DNS_PORT     53

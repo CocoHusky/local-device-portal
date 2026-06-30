@@ -6,6 +6,7 @@
 void portal_state_init(void);
 
 const char *portal_state_host(void);
+const char *portal_state_ap_ssid(void);
 const char *portal_state_dashboard_url(void);
 
 void portal_state_request_handoff(void);

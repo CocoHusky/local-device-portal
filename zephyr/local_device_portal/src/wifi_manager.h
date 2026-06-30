@@ -18,6 +18,7 @@ int wifi_manager_start_ap(void);
 int wifi_manager_stop_ap(void);
 int wifi_manager_scan_blocking(void);
 int wifi_manager_connect_blocking(const char *ssid, const char *pass);
+int wifi_manager_bind_socket_to_ap(int fd);
 
 bool wifi_manager_sta_connected(void);
 void wifi_manager_local_ip(char *out, size_t out_len);

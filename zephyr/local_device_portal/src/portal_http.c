@@ -8,6 +8,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/net/net_ip.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/sys/util.h>
 
@@ -81,9 +82,31 @@ static void send_json_status(int client)
 {
 	char body[256];
 	snprintk(body, sizeof(body),
-		"{\"ap_ssid\":\"%s\",\"sta_connected\":%s,\"saved_ssid\":\"%s\",\"dashboard\":\"%s\"}",
-		PORTAL_AP_SSID, wifi_manager_sta_connected() ? "true" : "false",
-		credential_store_ssid(), portal_state_dashboard_url());
+		"{\"ap_ssid\":\"%s\",\"sta_connected\":%s,\"saved_ssid\":\"%s\",\"host\":\"%s\",\"dashboard\":\"%s\"}",
+		portal_state_ap_ssid(), wifi_manager_sta_connected() ? "true" : "false",
+		credential_store_ssid(), portal_state_host(), portal_state_dashboard_url());
+
+	char header[192];
+	int len = strlen(body);
+	int hlen = snprintk(header, sizeof(header),
+		"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-store\r\nConnection: close\r\nContent-Length: %d\r\n\r\n",
+		len);
+
+	zsock_send(client, header, hlen, 0);
+	zsock_send(client, body, len, 0);
+}
+
+static void send_json_data(int client)
+{
+	char ip[NET_IPV4_ADDR_LEN];
+	char body[256];
+	int64_t uptime = k_uptime_get();
+
+	wifi_manager_local_ip(ip, sizeof(ip));
+	snprintk(body, sizeof(body),
+		"{\"sta_connected\":%s,\"local_ip\":\"%s\",\"rssi\":0,\"uptime_ms\":%lld,\"uptime\":\"%llds\"}",
+		wifi_manager_sta_connected() ? "true" : "false", ip,
+		(long long)uptime, (long long)(uptime / 1000));
 
 	char header[192];
 	int len = strlen(body);
@@ -98,10 +121,23 @@ static void send_json_status(int client)
 static bool path_is_captive_probe(const char *path)
 {
 	return strstr(path, "generate_204") != NULL ||
+	       strstr(path, "gen_204") != NULL ||
 	       strstr(path, "hotspot-detect") != NULL ||
+	       strstr(path, "library/test/success.html") != NULL ||
 	       strstr(path, "connecttest") != NULL ||
 	       strstr(path, "ncsi") != NULL ||
 	       strstr(path, "redirect") != NULL;
+}
+
+static void render_setup_entry(char *page, size_t page_len)
+{
+	if (wifi_manager_sta_connected()) {
+		const char *ssid = credential_store_has_ssid() ?
+			credential_store_ssid() : "local Wi-Fi";
+		portal_render_success(page, page_len, ssid);
+	} else {
+		portal_render_setup(page, page_len);
+	}
 }
 
 static void handle_http_client(int client)
@@ -124,6 +160,17 @@ static void handle_http_client(int client)
 
 	if (strcmp(path, "/status") == 0) {
 		send_json_status(client);
+		return;
+	}
+
+	if (strcmp(path, "/data") == 0) {
+		send_json_data(client);
+		return;
+	}
+
+	if (strcmp(path, "/") == 0 || strcmp(path, "/setup") == 0) {
+		render_setup_entry(page, sizeof(page));
+		send_response(client, page);
 		return;
 	}
 
@@ -170,9 +217,13 @@ static void handle_http_client(int client)
 		return;
 	}
 
-	if (strcmp(path, "/handoff") == 0 && strcmp(method, "POST") == 0) {
-		portal_state_request_handoff();
-		portal_render_handoff(page, sizeof(page));
+	if (strcmp(path, "/handoff") == 0) {
+		if (wifi_manager_sta_connected()) {
+			portal_state_request_handoff();
+			portal_render_handoff(page, sizeof(page));
+		} else {
+			portal_render_setup(page, sizeof(page));
+		}
 		send_response(client, page);
 		return;
 	}
@@ -196,12 +247,12 @@ static void handle_http_client(int client)
 	}
 
 	if (path_is_captive_probe(path)) {
-		portal_render_setup(page, sizeof(page));
+		render_setup_entry(page, sizeof(page));
 		send_response(client, page);
 		return;
 	}
 
-	portal_render_setup(page, sizeof(page));
+	render_setup_entry(page, sizeof(page));
 	send_response(client, page);
 }
 
@@ -215,6 +266,7 @@ static void http_thread(void)
 
 	int opt = 1;
 	zsock_setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	(void)wifi_manager_bind_socket_to_ap(server_fd);
 
 	struct sockaddr_in addr = { 0 };
 	addr.sin_family = AF_INET;
@@ -244,9 +296,10 @@ static void http_thread(void)
 	}
 }
 
-K_THREAD_DEFINE(http_tid, 8192, http_thread, NULL, NULL, NULL, 5, 0, 0);
+K_THREAD_DEFINE(http_tid, 8192, http_thread, NULL, NULL, NULL, 5, 0, SYS_FOREVER_MS);
 
 void portal_http_start(void)
 {
-	LOG_INF("HTTP service scheduled");
+	k_thread_start(http_tid);
+	LOG_INF("HTTP service started");
 }

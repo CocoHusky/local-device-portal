@@ -18,9 +18,8 @@ int main(void)
 	portal_state_init();
 	credential_store_init();
 	wifi_manager_init();
-	portal_dns_start();
-	portal_http_start();
 
+	LOG_INF("setup Wi-Fi: %s", portal_state_ap_ssid());
 	LOG_INF("setup URL: http://%s/", PORTAL_AP_IP);
 	LOG_INF("dashboard URL target: %s", portal_state_dashboard_url());
 
@@ -28,6 +27,9 @@ int main(void)
 	if (ret != 0) {
 		LOG_ERR("setup AP failed: %d", ret);
 	}
+
+	portal_dns_start();
+	portal_http_start();
 
 	if (credential_store_has_ssid()) {
 		LOG_INF("saved network found: %s", credential_store_ssid());

@@ -126,7 +126,7 @@ static void status_card(char *buf, size_t cap, size_t *off)
 		"<div class='row'><span>Setup IP</span><b>%s</b></div>"
 		"<div class='row'><span>Local Wi-Fi</span><b class='%s'>%s</b></div>"
 		"<div class='row'><span>Saved network</span><b>%s</b></div>",
-		PORTAL_AP_SSID, PORTAL_AP_IP,
+		portal_state_ap_ssid(), PORTAL_AP_IP,
 		wifi_manager_sta_connected() ? "good" : "bad",
 		wifi_manager_sta_connected() ? "connected" : "not connected",
 		credential_store_has_ssid() ? credential_store_ssid() : "none");
@@ -327,6 +327,6 @@ void portal_render_reset(char *buf, size_t cap)
 	page_append(buf, cap, &off,
 		"<div class='card'><div class='title'>Reset Wi-Fi</div><h2>Saved Wi-Fi cleared</h2>"
 		"<div class='spin'></div><p>Reconnect to <b style='color:white'>%s</b>, then open <b>%s</b>.</p></div>",
-		PORTAL_AP_SSID, PORTAL_AP_IP);
+		portal_state_ap_ssid(), PORTAL_AP_IP);
 	page_footer(buf, cap, &off);
 }
