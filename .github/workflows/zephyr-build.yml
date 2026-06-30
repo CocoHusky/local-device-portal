@@ -1,6 +1,11 @@
-name: Zephyr build
+name: Zephyr Firmware Build
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'zephyr/**'
+      - '.github/workflows/zephyr-build.yml'
   pull_request:
     paths:
       - 'zephyr/**'
@@ -8,13 +13,33 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-zephyr:
+    name: Build ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ESP32-WROOM
+            board: esp32_devkitc/esp32/procpu
+            build_dir: build-wroom
+          - name: XIAO-ESP32-C6
+            board: xiao_esp32c6/esp32c6/hpcore
+            build_dir: build-xiao-c6
+
     steps:
       - name: Checkout app
         uses: actions/checkout@v4
         with:
           path: local-device-portal
+
+      - name: Install host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build gperf ccache dfu-util device-tree-compiler \
+            wget python3-dev python3-pip python3-setuptools python3-tk python3-wheel \
+            xz-utils file make gcc gcc-multilib g++-multilib libsdl2-dev libmagic1
 
       - name: Install west
         run: |
@@ -28,10 +53,25 @@ jobs:
           west update
           west zephyr-export
           python3 -m pip install --user -r deps/zephyr/scripts/requirements.txt
-          west blobs fetch hal_espressif
           python3 -m pip install --user "esptool>=5.2.0"
 
-      - name: Build ESP32-C6 target
+      - name: Install Zephyr SDK
+        run: |
+          wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.4/zephyr-sdk-0.17.4_linux-x86_64_minimal.tar.xz
+          tar xf zephyr-sdk-0.17.4_linux-x86_64_minimal.tar.xz
+          cd zephyr-sdk-0.17.4
+          ./setup.sh -t xtensa-espressif_esp32_zephyr-elf -t riscv64-zephyr-elf -c
+          echo "ZEPHYR_SDK_INSTALL_DIR=$PWD" >> "$GITHUB_ENV"
+
+      - name: Fetch Espressif blobs
         run: |
           cd local-device-portal
-          west build -p=always -b xiao_esp32c6/esp32c6/hpcore zephyr/local_device_portal
+          west blobs fetch hal_espressif
+
+      - name: Build firmware
+        run: |
+          cd local-device-portal
+          west build -p=always \
+            -d "${{ matrix.build_dir }}" \
+            -b "${{ matrix.board }}" \
+            zephyr/local_device_portal
