@@ -11,7 +11,7 @@
 
 LOG_MODULE_REGISTER(local_device_portal, LOG_LEVEL_INF);
 
-#define FW_MARKER "zephyr-ap-only-http-debug-2026-06-30-01"
+#define FW_MARKER "zephyr-arduino-style-portal-2026-06-30-01"
 
 int main(void)
 {
@@ -24,9 +24,18 @@ int main(void)
 
 	LOG_INF("setup Wi-Fi: %s", portal_state_ap_ssid());
 	LOG_INF("setup URL: http://%s/", PORTAL_AP_IP);
-	LOG_INF("setup fallback URL: http://%s:%d/", PORTAL_AP_IP, PORTAL_HTTP_FALLBACK_PORT);
 	LOG_INF("dashboard URL target: %s", portal_state_dashboard_url());
 
+	/* Arduino reference flow:
+	 *   WiFi.mode(WIFI_AP_STA);
+	 *   WiFi.softAPConfig(AP_IP, AP_IP, AP_MASK);
+	 *   WiFi.softAP(setupApSsid.c_str(), AP_PASS);
+	 *   dns.start(DNS_PORT, "*", AP_IP);
+	 *   server.begin();
+	 *
+	 * Zephyr follows the same order with Zephyr APIs: AP IP first, AP enable,
+	 * DHCP, then global DNS and global HTTP listeners.
+	 */
 	int ret = wifi_manager_start_ap();
 	if (ret != 0) {
 		LOG_ERR("setup AP failed: %d", ret);
@@ -35,11 +44,8 @@ int main(void)
 	portal_dns_start();
 	portal_http_start();
 
-	/* Keep Zephyr setup mode AP-only until the browser portal works.  The ESP32
-	 * WROOM AP/DHCP/ICMP path is working, but TCP was being refused.  Do not bring
-	 * up a saved STA connection here because AP+STA can move the default Wi-Fi
-	 * context underneath the AP listener on Zephyr ESP32.  STA connection will be
-	 * re-enabled after the setup portal TCP path is proven stable.
+	/* Keep setup mode AP-only until HTTP is proven stable on WROOM.  This keeps
+	 * the portal path closest to Arduino's known-working setup page behavior.
 	 */
 	if (credential_store_has_ssid()) {
 		LOG_INF("saved network present but STA auto-connect disabled during setup debug: %s",
