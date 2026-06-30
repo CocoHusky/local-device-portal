@@ -142,7 +142,6 @@ int wifi_manager_start_ap(void)
 		return -ENODEV;
 	}
 
-	struct in_addr dhcp_start;
 	int ret = configure_ap_ipv4(iface);
 	if (ret != 0) {
 		return ret;
@@ -154,10 +153,22 @@ int wifi_manager_start_ap(void)
 	ap.psk = (const uint8_t *)PORTAL_AP_PASS;
 	ap.psk_length = strlen(PORTAL_AP_PASS);
 	ap.security = WIFI_SECURITY_TYPE_PSK;
-	ap.channel = WIFI_CHANNEL_ANY;
+	ap.channel = 6;
 	ap.band = WIFI_FREQ_BAND_2_4_GHZ;
 
+	ret = net_mgmt(NET_REQUEST_WIFI_AP_ENABLE, iface, &ap, sizeof(ap));
+	if (ret != 0) {
+		LOG_ERR("AP enable failed: %d", ret);
+		return ret;
+	}
+
+	LOG_INF("setup AP enabled: %s / %s", portal_state_ap_ssid(), PORTAL_AP_IP);
+
+	/* Give the ESP32 SAP interface time to finish coming up before DHCP starts. */
+	k_sleep(K_MSEC(300));
+
 #if defined(CONFIG_NET_DHCPV4_SERVER)
+	struct in_addr dhcp_start;
 	if (net_addr_pton(AF_INET, PORTAL_DHCP_START_IP, &dhcp_start) == 0) {
 		ret = net_dhcpv4_server_start(iface, &dhcp_start);
 		if (ret != 0 && ret != -EALREADY) {
@@ -171,13 +182,7 @@ int wifi_manager_start_ap(void)
 	}
 #endif
 
-	ret = net_mgmt(NET_REQUEST_WIFI_AP_ENABLE, iface, &ap, sizeof(ap));
-	if (ret != 0) {
-		LOG_ERR("AP enable failed: %d", ret);
-		return ret;
-	}
-
-	LOG_INF("setup AP started: %s / %s", portal_state_ap_ssid(), PORTAL_AP_IP);
+	LOG_INF("setup AP ready: %s / %s", portal_state_ap_ssid(), PORTAL_AP_IP);
 	return 0;
 }
 
