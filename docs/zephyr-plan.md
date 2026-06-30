@@ -1,106 +1,105 @@
-# Zephyr Plan
+# Zephyr Roadmap
 
 ## Goal
 
-Port the proven Arduino provisioning flow to Zephyr without changing the user experience.
+Provide one Zephyr firmware application for supported ESP32 boards while
+preserving the browser-first setup flow.
 
-## Do not start here
-
-The Arduino path is the UX prototype and MVP. Zephyr work should begin only after the following are stable:
-
-- Captive portal opens reliably enough for setup
-- Full browser fallback works at `192.168.4.1`
-- Wi-Fi scan and connect flow works
-- `.local` dashboard works where supported
-- Backup IP is available
-- Handoff behavior is understandable to users
-
-## Target behavior
-
-Zephyr should preserve:
+## Target Flow
 
 ```text
 First-run setup:
-  Connect to mmWave-Setup
-  Open captive setup page or 192.168.4.1
-  Pick Wi-Fi
+  Join mmWave-Setup
+  Open captive setup page or http://192.168.4.1/
+  Select Wi-Fi
   Enter password
   Connect
 
 Daily use:
   Open http://mmwave-xxxx.local/
-  Use numeric IP only as fallback
+  Use numeric IP as fallback
 ```
 
-## Proposed Zephyr modules
+## Application Layout
 
 ```text
-zephyr/
-├── app/
-│   ├── src/
-│   │   ├── main.c
-│   │   ├── portal_http.c
-│   │   ├── portal_http.h
-│   │   ├── portal_dns.c
-│   │   ├── portal_dns.h
-│   │   ├── wifi_manager.c
-│   │   ├── wifi_manager.h
-│   │   ├── credential_store.c
-│   │   ├── credential_store.h
-│   │   ├── dashboard.c
-│   │   └── dashboard.h
-│   ├── prj.conf
-│   └── CMakeLists.txt
-└── README.md
+zephyr/local_device_portal/
+├── CMakeLists.txt
+├── VERSION
+├── prj.conf
+├── sample.yaml
+├── boards/
+│   ├── esp32_devkitc_esp32_procpu.conf
+│   └── xiao_esp32c6_esp32c6_hpcore.conf
+└── src/
+    ├── main.c
+    ├── portal_config.h
+    ├── portal_state.c
+    ├── portal_state.h
+    ├── credential_store.c
+    ├── credential_store.h
+    ├── wifi_manager.c
+    ├── wifi_manager.h
+    ├── portal_http.c
+    ├── portal_http.h
+    ├── portal_dns.c
+    ├── portal_dns.h
+    ├── portal_render.c
+    └── portal_render.h
+```
+
+## Board Strategy
+
+Shared behavior belongs in `src/`. Board differences belong in
+`boards/<board>.conf` or devicetree overlays when needed.
+
+Supported targets:
+
+```text
+xiao_esp32c6/esp32c6/hpcore
+esp32_devkitc/esp32/procpu
 ```
 
 ## Milestones
 
-### Phase 1: Skeleton
+### 1. Build Health
 
-- Add Zephyr app directory
-- Confirm board config for ESP32-C6 target
-- Build minimal HTTP response
-- Verify serial logs and boot flow
+- Keep `sample.yaml` aligned with supported boards.
+- Build XIAO ESP32-C6 first.
+- Build ESP-WROOM-32 after the Xtensa toolchain is installed.
 
-### Phase 2: Setup AP
+### 2. Setup AP
 
-- Start AP at `mmWave-Setup`
-- Assign `192.168.4.1`
-- Serve setup page
-- Confirm browser can open page manually
+- Start AP as `mmWave-Setup`.
+- Assign `192.168.4.1`.
+- Serve setup page in a normal browser.
 
-### Phase 3: Captive DNS
+### 3. Captive DNS
 
-- Add UDP DNS responder
-- Return `192.168.4.1` for all queries while setup AP is active
-- Add captive probe routes
+- Return `192.168.4.1` for DNS requests while setup AP is active.
+- Preserve Android, iOS/macOS, and Windows captive probe routes.
 
-### Phase 4: Wi-Fi scan/connect
+### 4. Wi-Fi Provisioning
 
-- Scan local Wi-Fi networks
-- Render network list with signal strength
-- Connect STA while AP remains active
-- Store credentials in settings/NVS
+- Scan local Wi-Fi networks.
+- Render network list with security and signal state.
+- Connect as STA.
+- Store credentials in settings/NVS.
 
-### Phase 5: Local dashboard
+### 5. Dashboard
 
-- Serve dashboard on local network
-- Add mDNS if supported
-- Keep numeric IP fallback
+- Serve dashboard on the local network.
+- Prefer `http://mmwave-xxxx.local/`.
+- Show numeric IP as fallback.
 
-### Phase 6: Handoff
+### 6. Handoff
 
-- Stop setup AP after user requests dashboard handoff
-- Validate reconnect behavior from macOS, iOS, Android, and Windows
+- Let the user leave setup and open the dashboard.
+- Stop setup AP after the success page has been delivered.
 
-## Risks
+## Compatibility Risks
 
-- AP+STA behavior on ESP32-C6 can be more fragile in Zephyr than Arduino.
-- Captive portal mini-browsers are inconsistent.
-- mDNS support may differ from Arduino.
-- Zephyr HTTP server APIs may require more explicit socket handling.
-
-## Rule for porting
-
-Do not try to make Zephyr more advanced than the Arduino MVP at first. Match the working flow, then refactor.
+- AP+STA behavior can vary between ESP32-C6 and classic ESP32.
+- Captive portal mini-browsers behave differently across platforms.
+- mDNS reliability depends on the local network.
+- ESP32-C6 and ESP-WROOM-32 use different CPU toolchains.
