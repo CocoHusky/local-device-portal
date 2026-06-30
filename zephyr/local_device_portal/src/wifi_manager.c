@@ -8,6 +8,7 @@
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/wifi_mgmt.h>
+#include <zephyr/sys/util.h>
 
 #if defined(CONFIG_NET_DHCPV4_SERVER)
 #include <zephyr/net/dhcpv4_server.h>
