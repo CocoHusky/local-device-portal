@@ -17,7 +17,9 @@ jobs:
           path: local-device-portal
 
       - name: Install west
-        run: python3 -m pip install --user west
+        run: |
+          python3 -m pip install --user west
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Initialize Zephyr workspace
         run: |
@@ -26,6 +28,8 @@ jobs:
           west update
           west zephyr-export
           python3 -m pip install --user -r deps/zephyr/scripts/requirements.txt
+          west blobs fetch hal_espressif
+          python3 -m pip install --user "esptool>=5.2.0"
 
       - name: Build ESP32-C6 target
         run: |
