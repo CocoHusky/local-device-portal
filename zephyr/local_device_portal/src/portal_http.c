@@ -150,13 +150,6 @@ static void send_page(int client, const char *body)
 
 static void close_client(int client)
 {
-	struct linger linger = {
-		.l_onoff = 1,
-		.l_linger = 0,
-	};
-
-	(void)zsock_setsockopt(client, SOL_SOCKET, SO_LINGER, &linger, sizeof(linger));
-	(void)zsock_shutdown(client, SHUT_RDWR);
 	zsock_close(client);
 	LOG_INF("HTTP client closed; returning to accept");
 }
