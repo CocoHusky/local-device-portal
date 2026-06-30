@@ -166,6 +166,12 @@ static void handle_request(const char *req)
 	char ssid[PORTAL_SSID_MAX + 1];
 	char pass[PORTAL_PASS_MAX + 1];
 
+	if (strncmp(req, "GET /scan-results", 17) == 0) {
+		LOG_INF("HTTP route: scan-results");
+		portal_render_scan_results(page, sizeof(page));
+		return;
+	}
+
 	if (strncmp(req, "GET /scan", 9) == 0) {
 		LOG_INF("HTTP route: scan");
 		portal_render_scan(page, sizeof(page));
