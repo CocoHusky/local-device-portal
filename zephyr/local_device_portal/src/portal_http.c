@@ -155,6 +155,8 @@ static void handle_http_client(int client)
 	char path[256] = {0};
 	sscanf(req, "%7s %255s", method, path);
 
+	LOG_INF("HTTP %s %s", method, path);
+
 	char *body = strstr(req, "\r\n\r\n");
 	body = body ? body + 4 : (char *)"";
 
@@ -266,8 +268,12 @@ static void http_thread(void)
 
 	int opt = 1;
 	zsock_setsockopt(server_fd, ZSOCK_SOL_SOCKET, ZSOCK_SO_REUSEADDR, &opt, sizeof(opt));
-	(void)wifi_manager_bind_socket_to_ap(server_fd);
 
+	/* Match Arduino WebServer behavior: listen on all IPv4 interfaces.
+	 * The AP has 192.168.4.1, so AP clients still hit this server through that
+	 * address. Avoid SO_BINDTODEVICE because ESP32 Zephyr AP/STA interface names
+	 * are not identical across WROOM and C6 targets.
+	 */
 	struct sockaddr_in addr = { 0 };
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(PORTAL_HTTP_PORT);
@@ -285,7 +291,7 @@ static void http_thread(void)
 		return;
 	}
 
-	LOG_INF("HTTP server listening on port %d", PORTAL_HTTP_PORT);
+	LOG_INF("HTTP server listening on 0.0.0.0:%d", PORTAL_HTTP_PORT);
 
 	while (true) {
 		int client = zsock_accept(server_fd, NULL, NULL);
