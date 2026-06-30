@@ -186,12 +186,18 @@ http://192.168.4.1/
 The portal should provide:
 
 - Captive setup page
-- Wi-Fi scan
-- Network selection
+- Zephyr-safe Wi-Fi entry without running a live scan while the setup AP is serving clients
 - Password entry
+- AP-STA connection using Zephyr's separate AP and STA Wi-Fi interfaces
 - Saved credentials through Zephyr settings/NVS
 - Dashboard URL: `http://mmwave-xxxxxx.local/`
 - Numeric IP fallback
+
+The Zephyr implementation intentionally does not run an interactive Wi-Fi scan
+from `/scan` while a phone is connected to the setup AP. On ESP32 AP-STA this can
+retune the shared radio and drop the setup client. This matches the official
+Zephyr AP-STA sample behavior: enable AP mode first, start DHCP on the AP, then
+connect the STA interface to a known SSID.
 
 ## Troubleshooting
 
