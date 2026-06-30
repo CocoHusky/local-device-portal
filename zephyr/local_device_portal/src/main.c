@@ -1,5 +1,6 @@
 #include "credential_store.h"
 #include "portal_config.h"
+#include "portal_dns.h"
 #include "portal_http.h"
 #include "portal_state.h"
 #include "wifi_manager.h"
@@ -10,7 +11,7 @@
 
 LOG_MODULE_REGISTER(local_device_portal, LOG_LEVEL_INF);
 
-#define FW_MARKER "zephyr-direct-portal-routes-2026-06-30-01"
+#define FW_MARKER "zephyr-captive-dns-routes-2026-06-30-01"
 
 int main(void)
 {
@@ -33,11 +34,7 @@ int main(void)
 		}
 	}
 
-	/* Direct portal mode. DNS/captive portal is intentionally disabled for now:
-	 * with DNS enabled, the first HTTP request can work and then later requests
-	 * refuse even though the kernel shows TCP LISTEN. Keep 192.168.4.1 stable
-	 * first; add captive DNS only after the direct route flow is proven.
-	 */
+	portal_dns_start();
 	portal_http_start();
 
 	if (credential_store_has_ssid()) {

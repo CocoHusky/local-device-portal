@@ -16,11 +16,9 @@
 
 LOG_MODULE_REGISTER(portal_http, LOG_LEVEL_INF);
 
-static int http_listener = -1;
-static K_SEM_DEFINE(listener_ready_sem, 0, 2);
-static K_MUTEX_DEFINE(page_mutex);
 static char page[PORTAL_PAGE_MAX];
-static char req_buffers[2][PORTAL_REQ_MAX];
+static char req[PORTAL_REQ_MAX];
+K_MSGQ_DEFINE(client_queue, sizeof(int), 4, 4);
 
 static int open_listener(void)
 {
@@ -36,7 +34,11 @@ static int open_listener(void)
 	struct sockaddr_in addr = {0};
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(PORTAL_HTTP_PORT);
-	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	if (zsock_inet_pton(AF_INET, PORTAL_AP_IP, &addr.sin_addr) != 1) {
+		LOG_ERR("HTTP invalid bind address: %s", PORTAL_AP_IP);
+		zsock_close(fd);
+		return -EINVAL;
+	}
 
 	if (zsock_bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		int err = errno;
@@ -52,7 +54,7 @@ static int open_listener(void)
 		return -err;
 	}
 
-	LOG_INF("HTTP portal listener ready on 0.0.0.0:%u", PORTAL_HTTP_PORT);
+	LOG_INF("HTTP portal listener ready on %s:%u", PORTAL_AP_IP, PORTAL_HTTP_PORT);
 	return fd;
 }
 
@@ -151,17 +153,45 @@ static void close_client(int client)
 	zsock_close(client);
 }
 
-static void render_scan_placeholder(char *page, size_t page_len)
+static void render_debug_page(char *page, size_t page_len, const char *request)
 {
 	snprintk(page, page_len,
 		"<!doctype html><html><head><meta charset='utf-8'>"
 		"<meta name='viewport' content='width=device-width,initial-scale=1'>"
-		"<title>Scan</title></head><body style='font-family:system-ui;background:#050b16;color:#d8e6f7;padding:18px'>"
-		"<h1>Wi-Fi scan temporarily disabled</h1>"
-		"<p>The direct setup portal is stable. Use manual Wi-Fi entry for now while scan is isolated.</p>"
-		"<p><a style='color:#46d8ff' href='/manual'>Type network manually</a></p>"
-		"<p><a style='color:#46d8ff' href='/'>Back</a></p>"
-		"</body></html>");
+		"<title>Portal debug</title></head>"
+		"<body style='font-family:system-ui;background:#050b16;color:#d8e6f7;padding:18px'>"
+		"<h1>Portal debug</h1>"
+		"<p>AP: <b>%s</b></p>"
+		"<p>IP: <b>%s</b></p>"
+		"<h2>Captive probe routes</h2>"
+		"<ul>"
+		"<li>Apple/macOS/iOS: /hotspot-detect.html, /library/test/success.html, /success.txt</li>"
+		"<li>Android/ChromeOS: /generate_204, /gen_204</li>"
+		"<li>Windows: /connecttest.txt, /ncsi.txt, /fwlink</li>"
+		"<li>Firefox/Ubuntu: /canonical.html</li>"
+		"</ul>"
+		"<h2>Last request</h2>"
+		"<pre style='white-space:pre-wrap;background:#07101f;border:1px solid #243852;padding:12px;border-radius:10px'>%.900s</pre>"
+		"<p><a style='color:#46d8ff' href='/'>Setup</a> | "
+		"<a style='color:#46d8ff' href='/manual'>Manual</a> | "
+		"<a style='color:#46d8ff' href='/scan'>Scan</a></p>"
+		"</body></html>",
+		portal_state_ap_ssid(), PORTAL_AP_IP, request);
+}
+
+static bool is_captive_probe(const char *request)
+{
+	return strncmp(request, "GET /hotspot-detect.html", 24) == 0 ||
+	       strncmp(request, "GET /library/test/success.html", 30) == 0 ||
+	       strncmp(request, "GET /success.txt", 16) == 0 ||
+	       strncmp(request, "GET /generate_204", 17) == 0 ||
+	       strncmp(request, "GET /gen_204", 12) == 0 ||
+	       strncmp(request, "GET /connecttest.txt", 20) == 0 ||
+	       strncmp(request, "GET /ncsi.txt", 13) == 0 ||
+	       strncmp(request, "GET /fwlink", 11) == 0 ||
+	       strncmp(request, "GET /canonical.html", 19) == 0 ||
+	       strncmp(request, "GET /mobile/status.php", 22) == 0 ||
+	       strncmp(request, "GET /kindle-wifi/wifistub.html", 30) == 0;
 }
 
 static void handle_request(const char *req, char *page, size_t page_len)
@@ -169,9 +199,27 @@ static void handle_request(const char *req, char *page, size_t page_len)
 	char ssid[PORTAL_SSID_MAX + 1];
 	char pass[PORTAL_PASS_MAX + 1];
 
+	if (is_captive_probe(req)) {
+		LOG_INF("HTTP route: captive probe");
+		portal_render_setup(page, page_len);
+		return;
+	}
+
+	if (strncmp(req, "GET /debug", 10) == 0) {
+		LOG_INF("HTTP route: debug");
+		render_debug_page(page, page_len, req);
+		return;
+	}
+
+	if (strncmp(req, "GET /dashboard", 14) == 0) {
+		LOG_INF("HTTP route: dashboard");
+		portal_render_dashboard(page, page_len);
+		return;
+	}
+
 	if (strncmp(req, "GET /scan", 9) == 0) {
-		LOG_INF("HTTP route: scan placeholder");
-		render_scan_placeholder(page, page_len);
+		LOG_INF("HTTP route: scan");
+		portal_render_scan(page, page_len);
 		return;
 	}
 
@@ -221,21 +269,17 @@ static void handle_request(const char *req, char *page, size_t page_len)
 		return;
 	}
 
-	LOG_INF("HTTP route: setup");
-	portal_render_setup(page, page_len);
+	if (wifi_manager_sta_connected()) {
+		LOG_INF("HTTP route: dashboard default");
+		portal_render_dashboard(page, page_len);
+	} else {
+		LOG_INF("HTTP route: setup");
+		portal_render_setup(page, page_len);
+	}
 }
 
-static int serve_one_client(int listener, int worker_id)
+static void serve_client(int client)
 {
-	int client = zsock_accept(listener, NULL, NULL);
-	if (client < 0) {
-		int err = errno;
-		LOG_WRN("HTTP worker %d accept failed errno=%d", worker_id, err);
-		return -err;
-	}
-
-	LOG_INF("HTTP worker %d client accepted", worker_id);
-	char *req = req_buffers[worker_id];
 	int total = 0;
 	int content_len = 0;
 	char *header_end = NULL;
@@ -245,17 +289,21 @@ static int serve_one_client(int listener, int worker_id)
 			.fd = client,
 			.events = ZSOCK_POLLIN,
 		};
-		int timeout_ms = header_end == NULL ? 1500 : 3000;
-		int ready = zsock_poll(&pfd, 1, timeout_ms);
+		int ready = zsock_poll(&pfd, 1, 1500);
 		if (ready <= 0) {
-			LOG_WRN("HTTP rx timeout/closed ready=%d total=%d errno=%d", ready, total, errno);
-			break;
+			if (total > 0) {
+				LOG_WRN("HTTP rx timeout/closed ready=%d total=%d errno=%d",
+					ready, total, errno);
+			}
+			goto done;
 		}
 
 		int n = zsock_recv(client, req + total, PORTAL_REQ_MAX - 1 - total, 0);
 		if (n <= 0) {
-			LOG_WRN("HTTP recv failed/closed n=%d errno=%d", n, errno);
-			break;
+			if (total > 0) {
+				LOG_WRN("HTTP recv failed/closed n=%d errno=%d", n, errno);
+			}
+			goto done;
 		}
 
 		total += n;
@@ -283,79 +331,67 @@ static int serve_one_client(int listener, int worker_id)
 		}
 	}
 
-	if (total > 0) {
-		req[total] = '\0';
-		LOG_INF("HTTP worker %d rx (%d bytes): %.120s", worker_id, total, req);
-		k_mutex_lock(&page_mutex, K_FOREVER);
-		handle_request(req, page, sizeof(page));
-		send_page(client, page);
-		k_mutex_unlock(&page_mutex);
-	} else {
-		LOG_WRN("HTTP worker %d client closed without request", worker_id);
-	}
+	req[total] = '\0';
+	LOG_INF("HTTP rx (%d bytes): %.120s", total, req);
+	handle_request(req, page, sizeof(page));
+	send_page(client, page);
 
+done:
 	close_client(client);
-	LOG_INF("HTTP worker %d client closed", worker_id);
-	return 0;
+	LOG_INF("HTTP client closed");
 }
 
-static void http_accept_worker(void *worker_arg, void *unused1, void *unused2)
-{
-	ARG_UNUSED(unused1);
-	ARG_UNUSED(unused2);
-
-	int worker_id = (int)(intptr_t)worker_arg;
-
-	while (true) {
-		k_sem_take(&listener_ready_sem, K_FOREVER);
-		k_sem_give(&listener_ready_sem);
-
-		int accept_errors = 0;
-		while (true) {
-			int ret = serve_one_client(http_listener, worker_id);
-			if (ret == 0) {
-				accept_errors = 0;
-				continue;
-			}
-
-			accept_errors++;
-			if (accept_errors >= 3) {
-				LOG_WRN("HTTP worker %d has repeated accept errors", worker_id);
-				break;
-			}
-			k_sleep(K_MSEC(25));
-		}
-	}
-}
-
-static void http_thread(void)
+static void http_accept_thread(void)
 {
 	while (true) {
-		http_listener = open_listener();
-		if (http_listener < 0) {
+		int fd = open_listener();
+		if (fd < 0) {
 			LOG_ERR("HTTP listener open failed; retrying");
 			k_sleep(K_MSEC(500));
 			continue;
 		}
 
-		k_sem_give(&listener_ready_sem);
-		k_sem_give(&listener_ready_sem);
-		LOG_INF("HTTP accept workers released");
-
+		int accept_errors = 0;
 		while (true) {
-			k_sleep(K_SECONDS(60));
+			int client = zsock_accept(fd, NULL, NULL);
+			if (client >= 0) {
+				LOG_INF("HTTP client accepted");
+				accept_errors = 0;
+				if (k_msgq_put(&client_queue, &client, K_NO_WAIT) != 0) {
+					LOG_WRN("HTTP client queue full; closing");
+					close_client(client);
+				}
+				continue;
+			}
+
+			LOG_WRN("HTTP accept failed errno=%d", errno);
+			accept_errors++;
+			if (accept_errors >= 3) {
+				LOG_WRN("HTTP listener unhealthy after accept errors; reopening");
+				break;
+			}
+			k_sleep(K_MSEC(25));
 		}
+
+		zsock_close(fd);
 	}
 }
 
-K_THREAD_DEFINE(http_worker0_tid, 3072, http_accept_worker,
-		(void *)0, NULL, NULL, 5, 0, SYS_FOREVER_MS);
-K_THREAD_DEFINE(http_worker1_tid, 3072, http_accept_worker,
-		(void *)1, NULL, NULL, 5, 0, SYS_FOREVER_MS);
-K_THREAD_DEFINE(http_tid, 1536, http_thread, NULL, NULL, NULL, 5, 0, SYS_FOREVER_MS);
+static void http_client_thread(void)
+{
+	while (true) {
+		int client;
+		k_msgq_get(&client_queue, &client, K_FOREVER);
+		serve_client(client);
+	}
+}
+
+K_THREAD_DEFINE(http_accept_tid, 3072, http_accept_thread, NULL, NULL, NULL, 5, 0, SYS_FOREVER_MS);
+K_THREAD_DEFINE(http_client_tid, 6144, http_client_thread, NULL, NULL, NULL, 5, 0, SYS_FOREVER_MS);
 
 void portal_http_start(void)
 {
-	k_thread_start(http_tid);
+	k_thread_start(http_accept_tid);
+	k_thread_start(http_client_tid);
 	LOG_INF("HTTP portal service started on port %u", PORTAL_HTTP_PORT);
 }

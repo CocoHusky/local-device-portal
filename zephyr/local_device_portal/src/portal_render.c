@@ -102,13 +102,13 @@ static void page_header(char *buf, size_t cap, size_t *off, const char *title)
 		"<!doctype html><html><head><meta charset='utf-8'>"
 		"<meta name='viewport' content='width=device-width,initial-scale=1'>"
 		"<title>%s</title>"
-		"<style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#050b16;color:#d8e6f7;margin:0;padding:18px}"
-		".wrap{max-width:480px;margin:auto}.card{background:#0d1727;border:1px solid #1b2d4a;border-radius:17px;padding:18px;margin:0 0 14px;box-shadow:0 18px 50px #0005}"
+		"<style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:radial-gradient(circle at top left,#00b8f024,transparent 30rem),radial-gradient(circle at bottom right,#00d97e12,transparent 28rem),#050b16;color:#d8e6f7;margin:0;padding:18px}"
+		".wrap{max-width:480px;margin:auto}.card{background:linear-gradient(180deg,#101d32f5,#0d1727f5);border:1px solid #1b2d4a;border-radius:17px;padding:18px;margin:0 0 14px;box-shadow:0 18px 50px #0005}"
 		"h1{font-size:22px;margin:0 0 4px;color:white}h2{font-size:18px;margin:0 0 8px;color:white}.muted,p{color:#7890ad;line-height:1.45}.title{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#7890ad;font-weight:900;margin-bottom:10px}"
 		"button,.btn,input{display:block;width:100%%;box-sizing:border-box;border-radius:11px;border:0;padding:14px;margin:8px 0;font:inherit;font-weight:800;text-decoration:none;text-align:center}"
 		"button,.primary{background:linear-gradient(135deg,#00b8f0,#46d8ff);color:#001018}.ghost{background:#ffffff05;color:#9fb0c8;border:1px solid #1b2d4a}.danger{background:#ff5c5c14;color:#ff5c5c;border:1px solid #ff5c5c3d}"
 		"input{background:#07101f;color:#d8e6f7;border:1px solid #1b2d4a;font-weight:500}.row{display:flex;justify-content:space-between;border-bottom:1px solid #fff1;padding:6px 0;gap:12px}.good{color:#00d97e}.bad{color:#ff5c5c}.net{text-align:left;background:#07101f;color:#d8e6f7;border:1px solid #1b2d4a}.bar{height:10px;border-radius:99px;background:#26344f;overflow:hidden}.fill{height:100%%;border-radius:99px;background:linear-gradient(90deg,#00b8f0,#00d97e)}"
-		".steps{display:flex;align-items:center;margin:12px 0}.dot{width:28px;height:28px;border-radius:50%%;display:flex;align-items:center;justify-content:center;border:2px solid #274262;color:#7890ad;font-weight:900}.dot.on{border-color:#00b8f0;color:#00b8f0}.dot.done{border-color:#00d97e;background:#00d97e;color:#00140b}.line{flex:1;height:2px;background:#274262}.line.done{background:#00d97e}.ip{font-size:20px;color:#00d97e;font-weight:900;word-break:break-all}.spin{width:52px;height:52px;border-radius:50%%;border:4px solid #ffffff14;border-top-color:#00b8f0;border-right-color:#00d97e;animation:spin .85s linear infinite;margin:18px auto}@keyframes spin{to{transform:rotate(360deg)}}"
+		".steps{display:flex;align-items:center;margin:12px 0}.dot{width:28px;height:28px;border-radius:50%%;display:flex;align-items:center;justify-content:center;border:2px solid #274262;color:#7890ad;font-weight:900}.dot.on{border-color:#00b8f0;color:#00b8f0;background:#00b8f014}.dot.done{border-color:#00d97e;background:#00d97e;color:#00140b}.line{flex:1;height:2px;background:#274262}.line.done{background:#00d97e}.msg{border:1px solid #1b2d4a;border-radius:12px;padding:12px;background:#081325;color:#9fb0c8}.ip{font-size:20px;color:#00d97e;font-weight:900;word-break:break-all}.host{font-size:18px;color:#fff;font-weight:900;word-break:break-all}.small{font-size:12px;color:#7890ad}.spin{width:52px;height:52px;border-radius:50%%;border:4px solid #ffffff14;border-top-color:#00b8f0;border-right-color:#00d97e;animation:spin .85s linear infinite;margin:18px auto}@keyframes spin{to{transform:rotate(360deg)}}"
 		"</style></head><body><div class='wrap'><div class='card'><h1>mmWave Sensor</h1><div class='muted'>Wi-Fi setup</div></div>",
 		title);
 }
@@ -187,13 +187,14 @@ void portal_render_manual(char *buf, size_t cap, const char *error)
 	status_card(buf, cap, &off);
 	steps(buf, cap, &off, 2);
 	page_append(buf, cap, &off,
-		"<div class='card'><div class='title'>Step 2 of 3</div><h2>Enter Wi-Fi</h2>");
+		"<div class='card'><div class='title'>Step 2 of 3</div><h2>Enter Wi-Fi</h2>"
+		"<p>Use this if your network is hidden.</p>");
 	if (error != NULL && error[0]) {
 		page_append(buf, cap, &off, "<p class='bad'>%s</p>", error);
 	}
 	page_append(buf, cap, &off,
-		"<form method='POST' action='/connect'><input name='ssid' placeholder='Wi-Fi network name'>"
-		"<input name='pass' type='password' placeholder='Wi-Fi password'>"
+		"<form method='POST' action='/connect'><input name='ssid' placeholder='Wi-Fi network name' autocomplete='off'>"
+		"<input name='pass' type='password' placeholder='Wi-Fi password' autocomplete='current-password'>"
 		"<button>Connect</button></form><a class='btn ghost' href='/'>Back</a></div>");
 	bottom_actions(buf, cap, &off);
 	page_footer(buf, cap, &off);
@@ -201,7 +202,7 @@ void portal_render_manual(char *buf, size_t cap, const char *error)
 
 void portal_render_scan(char *buf, size_t cap)
 {
-	wifi_manager_scan_blocking();
+	int scan_ret = wifi_manager_scan_blocking();
 
 	size_t off = 0;
 	page_header(buf, cap, &off, "Scan");
@@ -209,6 +210,17 @@ void portal_render_scan(char *buf, size_t cap)
 	steps(buf, cap, &off, 1);
 	page_append(buf, cap, &off,
 		"<div class='card'><div class='title'>Step 1 of 3</div><h2>Choose Wi-Fi</h2>");
+
+	if (scan_ret != 0) {
+		page_append(buf, cap, &off,
+			"<p class='bad'>Wi-Fi scan failed (%d). Try again or enter it manually.</p>"
+			"<form method='GET' action='/scan'><button>Scan again</button></form>"
+			"<a class='btn ghost' href='/manual'>Type network manually</a></div>",
+			scan_ret);
+		bottom_actions(buf, cap, &off);
+		page_footer(buf, cap, &off);
+		return;
+	}
 
 	int scan_count = wifi_manager_scan_count();
 	const struct portal_net *scan_results = wifi_manager_scan_results();
@@ -282,7 +294,8 @@ void portal_render_success(char *buf, size_t cap, const char *ssid)
 	page_append(buf, cap, &off,
 		"<div class='card'><div class='title'>Step 3 of 3</div><h2>Connected</h2>"
 		"<p>The sensor joined <b style='color:white'>%s</b>.</p>"
-		"<p>Dashboard:</p><div class='ip'>%s</div><p class='muted'>Backup IP: %s</p>"
+		"<p>Dashboard:</p><div class='host'>%s</div><p class='small'>Backup IP: %s</p>"
+		"<p>Click below to close setup Wi-Fi. Then reconnect to your normal Wi-Fi and open the dashboard.</p>"
 		"<form method='POST' action='/handoff'><button>Go to dashboard</button></form></div>",
 		esc, portal_state_dashboard_url(), ip[0] ? ip : "check serial");
 	bottom_actions(buf, cap, &off);
