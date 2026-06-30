@@ -1,6 +1,5 @@
 #include "credential_store.h"
 #include "portal_config.h"
-#include "portal_dns.h"
 #include "portal_http.h"
 #include "portal_state.h"
 #include "wifi_manager.h"
@@ -11,7 +10,7 @@
 
 LOG_MODULE_REGISTER(local_device_portal, LOG_LEVEL_INF);
 
-#define FW_MARKER "zephyr-portal-delayed-dns-2026-06-30-01"
+#define FW_MARKER "zephyr-direct-portal-routes-2026-06-30-01"
 
 int main(void)
 {
@@ -34,14 +33,12 @@ int main(void)
 		}
 	}
 
-	/* HTTP must come up first. On ESP32 WROOM, starting DNS immediately beside
-	 * HTTP produced a kernel TCP LISTEN context that still refused AP clients.
-	 * The direct portal path is stable when HTTP owns port 80 first, so delay DNS
-	 * until after the HTTP listener is alive.
+	/* Direct portal mode. DNS/captive portal is intentionally disabled for now:
+	 * with DNS enabled, the first HTTP request can work and then later requests
+	 * refuse even though the kernel shows TCP LISTEN. Keep 192.168.4.1 stable
+	 * first; add captive DNS only after the direct route flow is proven.
 	 */
 	portal_http_start();
-	k_sleep(K_MSEC(750));
-	portal_dns_start();
 
 	if (credential_store_has_ssid()) {
 		LOG_INF("saved network present but STA auto-connect disabled during setup debug: %s",
