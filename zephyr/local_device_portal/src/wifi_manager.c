@@ -225,9 +225,9 @@ void wifi_manager_local_ip(char *out, size_t out_len)
 	}
 
 	for (int i = 0; i < NET_IF_MAX_IPV4_ADDR; i++) {
-		if (iface->config.ip.ipv4->unicast[i].is_used) {
+		if (iface->config.ip.ipv4->unicast[i].ipv4.is_used) {
 			net_addr_ntop(AF_INET,
-				      &iface->config.ip.ipv4->unicast[i].address.in_addr,
+				      &iface->config.ip.ipv4->unicast[i].ipv4.address.in_addr,
 				      out, out_len);
 			return;
 		}
