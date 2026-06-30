@@ -273,7 +273,7 @@ static void wifi_event_handler(struct net_mgmt_event_callback *cb,
 		LOG_INF("AP mode is disabled");
 		break;
 	case NET_EVENT_WIFI_AP_STA_CONNECTED: {
-		struct wifi_ap_sta_info *sta_info = cb->info;
+		const struct wifi_ap_sta_info *sta_info = cb->info;
 
 		if (sta_info != NULL) {
 			LOG_INF("station: " MACSTR " joined",
@@ -283,7 +283,7 @@ static void wifi_event_handler(struct net_mgmt_event_callback *cb,
 		break;
 	}
 	case NET_EVENT_WIFI_AP_STA_DISCONNECTED: {
-		struct wifi_ap_sta_info *sta_info = cb->info;
+		const struct wifi_ap_sta_info *sta_info = cb->info;
 
 		if (sta_info != NULL) {
 			LOG_INF("station: " MACSTR " left",
