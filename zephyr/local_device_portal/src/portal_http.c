@@ -11,9 +11,16 @@
 #include <zephyr/net/socket.h>
 
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 
 LOG_MODULE_REGISTER(portal_http, LOG_LEVEL_INF);
+
+static int http_listener = -1;
+static K_SEM_DEFINE(listener_ready_sem, 0, 2);
+static K_MUTEX_DEFINE(page_mutex);
+static char page[PORTAL_PAGE_MAX];
+static char req_buffers[2][PORTAL_REQ_MAX];
 
 static int open_listener(void)
 {
@@ -38,7 +45,7 @@ static int open_listener(void)
 		return -err;
 	}
 
-	if (zsock_listen(fd, 1) < 0) {
+	if (zsock_listen(fd, 4) < 0) {
 		int err = errno;
 		LOG_ERR("HTTP listen failed errno=%d", err);
 		zsock_close(fd);
@@ -118,8 +125,30 @@ static void send_page(int client, const char *page)
 		body_len);
 
 	LOG_INF("HTTP sending page: %d bytes", body_len);
-	zsock_send(client, header, header_len, 0);
-	zsock_send(client, page, body_len, 0);
+
+	const char *chunks[] = { header, page };
+	int lens[] = { header_len, body_len };
+
+	for (int i = 0; i < ARRAY_SIZE(chunks); i++) {
+		const char *data = chunks[i];
+		int remaining = lens[i];
+
+		while (remaining > 0) {
+			int sent = zsock_send(client, data, remaining, 0);
+			if (sent <= 0) {
+				LOG_WRN("HTTP send stopped sent=%d errno=%d", sent, errno);
+				return;
+			}
+			data += sent;
+			remaining -= sent;
+		}
+	}
+}
+
+static void close_client(int client)
+{
+	zsock_shutdown(client, SHUT_RDWR);
+	zsock_close(client);
 }
 
 static void render_scan_placeholder(char *page, size_t page_len)
@@ -196,49 +225,134 @@ static void handle_request(const char *req, char *page, size_t page_len)
 	portal_render_setup(page, page_len);
 }
 
-static void serve_one_client(int listener)
+static int serve_one_client(int listener, int worker_id)
 {
-	static char page[PORTAL_PAGE_MAX];
 	int client = zsock_accept(listener, NULL, NULL);
 	if (client < 0) {
-		LOG_WRN("HTTP accept failed errno=%d", errno);
-		return;
+		int err = errno;
+		LOG_WRN("HTTP worker %d accept failed errno=%d", worker_id, err);
+		return -err;
 	}
 
-	LOG_INF("HTTP client accepted");
-	char req[PORTAL_REQ_MAX];
-	int n = zsock_recv(client, req, sizeof(req) - 1, 0);
-	if (n > 0) {
-		req[n] = '\0';
-		LOG_INF("HTTP rx: %.120s", req);
+	LOG_INF("HTTP worker %d client accepted", worker_id);
+	char *req = req_buffers[worker_id];
+	int total = 0;
+	int content_len = 0;
+	char *header_end = NULL;
+
+	while (total < PORTAL_REQ_MAX - 1) {
+		struct zsock_pollfd pfd = {
+			.fd = client,
+			.events = ZSOCK_POLLIN,
+		};
+		int timeout_ms = header_end == NULL ? 1500 : 3000;
+		int ready = zsock_poll(&pfd, 1, timeout_ms);
+		if (ready <= 0) {
+			LOG_WRN("HTTP rx timeout/closed ready=%d total=%d errno=%d", ready, total, errno);
+			break;
+		}
+
+		int n = zsock_recv(client, req + total, PORTAL_REQ_MAX - 1 - total, 0);
+		if (n <= 0) {
+			LOG_WRN("HTTP recv failed/closed n=%d errno=%d", n, errno);
+			break;
+		}
+
+		total += n;
+		req[total] = '\0';
+
+		if (header_end == NULL) {
+			header_end = strstr(req, "\r\n\r\n");
+			if (header_end != NULL) {
+				const char *content = strstr(req, "Content-Length:");
+				if (content != NULL && content < header_end) {
+					content += strlen("Content-Length:");
+					content_len = atoi(content);
+					if (content_len < 0) {
+						content_len = 0;
+					}
+				}
+			}
+		}
+
+		if (header_end != NULL) {
+			int header_len = (int)(header_end - req) + 4;
+			if (total >= header_len + content_len) {
+				break;
+			}
+		}
+	}
+
+	if (total > 0) {
+		req[total] = '\0';
+		LOG_INF("HTTP worker %d rx (%d bytes): %.120s", worker_id, total, req);
+		k_mutex_lock(&page_mutex, K_FOREVER);
 		handle_request(req, page, sizeof(page));
 		send_page(client, page);
+		k_mutex_unlock(&page_mutex);
 	} else {
-		LOG_WRN("HTTP recv failed/closed n=%d errno=%d", n, errno);
+		LOG_WRN("HTTP worker %d client closed without request", worker_id);
 	}
 
-	zsock_close(client);
-	LOG_INF("HTTP client closed");
+	close_client(client);
+	LOG_INF("HTTP worker %d client closed", worker_id);
+	return 0;
+}
+
+static void http_accept_worker(void *worker_arg, void *unused1, void *unused2)
+{
+	ARG_UNUSED(unused1);
+	ARG_UNUSED(unused2);
+
+	int worker_id = (int)(intptr_t)worker_arg;
+
+	while (true) {
+		k_sem_take(&listener_ready_sem, K_FOREVER);
+		k_sem_give(&listener_ready_sem);
+
+		int accept_errors = 0;
+		while (true) {
+			int ret = serve_one_client(http_listener, worker_id);
+			if (ret == 0) {
+				accept_errors = 0;
+				continue;
+			}
+
+			accept_errors++;
+			if (accept_errors >= 3) {
+				LOG_WRN("HTTP worker %d has repeated accept errors", worker_id);
+				break;
+			}
+			k_sleep(K_MSEC(25));
+		}
+	}
 }
 
 static void http_thread(void)
 {
 	while (true) {
-		int fd = open_listener();
-		if (fd < 0) {
-			LOG_ERR("HTTP listener reopen failed; retrying");
+		http_listener = open_listener();
+		if (http_listener < 0) {
+			LOG_ERR("HTTP listener open failed; retrying");
 			k_sleep(K_MSEC(500));
 			continue;
 		}
 
-		serve_one_client(fd);
-		zsock_close(fd);
-		LOG_INF("HTTP listener recycled after request");
-		k_sleep(K_MSEC(25));
+		k_sem_give(&listener_ready_sem);
+		k_sem_give(&listener_ready_sem);
+		LOG_INF("HTTP accept workers released");
+
+		while (true) {
+			k_sleep(K_SECONDS(60));
+		}
 	}
 }
 
-K_THREAD_DEFINE(http_tid, 8192, http_thread, NULL, NULL, NULL, 5, 0, SYS_FOREVER_MS);
+K_THREAD_DEFINE(http_worker0_tid, 3072, http_accept_worker,
+		(void *)0, NULL, NULL, 5, 0, SYS_FOREVER_MS);
+K_THREAD_DEFINE(http_worker1_tid, 3072, http_accept_worker,
+		(void *)1, NULL, NULL, 5, 0, SYS_FOREVER_MS);
+K_THREAD_DEFINE(http_tid, 1536, http_thread, NULL, NULL, NULL, 5, 0, SYS_FOREVER_MS);
 
 void portal_http_start(void)
 {
