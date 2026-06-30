@@ -119,6 +119,13 @@ static void page_footer(char *buf, size_t cap, size_t *off)
 	page_append(buf, cap, off, "</div></body></html>");
 }
 
+static void auto_redirect(char *buf, size_t cap, size_t *off, const char *url, int delay_ms)
+{
+	page_append(buf, cap, off,
+		"<script>setTimeout(function(){window.location.replace('%s');},%d);</script>",
+		url, delay_ms);
+}
+
 static void status_card(char *buf, size_t cap, size_t *off)
 {
 	page_append(buf, cap, off,
@@ -207,7 +214,7 @@ void portal_render_scan(char *buf, size_t cap)
 	size_t off = 0;
 
 	page_header(buf, cap, &off, "Scanning");
-	page_append(buf, cap, &off, "<meta http-equiv='refresh' content='4;url=/scan-results'>");
+	auto_redirect(buf, cap, &off, "/scan-results", 900);
 	status_card(buf, cap, &off);
 	steps(buf, cap, &off, 1);
 	page_append(buf, cap, &off,
@@ -216,17 +223,16 @@ void portal_render_scan(char *buf, size_t cap)
 
 	if (ret == -EALREADY) {
 		page_append(buf, cap, &off,
-			"<p>A scan is already running. Results will refresh when it finishes.</p>");
+			"<p>A scan is already running. Results will open automatically.</p>");
 	} else if (ret != 0) {
 		page_append(buf, cap, &off,
 			"<p class='bad'>Could not start Wi-Fi scan (%d).</p>", ret);
 	} else {
 		page_append(buf, cap, &off,
-			"<p>Refreshing the network list. Your device may briefly pause while the ESP32 radio scans.</p>");
+			"<p>Refreshing the network list. Results will open automatically.</p>");
 	}
 
 	page_append(buf, cap, &off,
-		"<a class='btn primary' href='/scan-results'>Show results</a>"
 		"<a class='btn ghost' href='/manual'>Type network manually</a></div>");
 	bottom_actions(buf, cap, &off);
 	page_footer(buf, cap, &off);
@@ -256,9 +262,9 @@ void portal_render_scan_results(char *buf, size_t cap)
 	}
 
 	if (state == PORTAL_SCAN_RUNNING) {
+		auto_redirect(buf, cap, &off, "/scan-results", 2500);
 		page_append(buf, cap, &off,
-			"<meta http-equiv='refresh' content='3;url=/scan-results'>"
-			"<div class='spin'></div><p>Still scanning. This page will refresh.</p>"
+			"<div class='spin'></div><p>Still scanning. This page will refresh automatically.</p>"
 			"<a class='btn ghost' href='/manual'>Type network manually</a></div>");
 		bottom_actions(buf, cap, &off);
 		page_footer(buf, cap, &off);
@@ -359,15 +365,14 @@ void portal_render_handoff(char *buf, size_t cap)
 	size_t off = 0;
 
 	page_header(buf, cap, &off, "Opening dashboard");
+	auto_redirect(buf, cap, &off, portal_state_dashboard_url(), 30000);
 	page_append(buf, cap, &off,
-		"<meta http-equiv='refresh' content='30;url=%s'>"
 		"<div class='card'><div class='title'>Opening dashboard</div><h2>Switching Wi-Fi</h2>"
 		"<div class='spin'></div><div class='ip' style='text-align:center;color:white'>30 sec</div>"
 		"<p>The setup Wi-Fi is turning off. Your device should reconnect to your normal Wi-Fi, then open the dashboard.</p>"
 		"<p>This can take up to <b style='color:white'>30 seconds</b>.</p>"
 		"<p>Dashboard:</p><div class='ip'>%s</div><a class='btn primary' href='%s'>Open dashboard now</a></div>",
-		portal_state_dashboard_url(), portal_state_dashboard_url(),
-		portal_state_dashboard_url());
+		portal_state_dashboard_url(), portal_state_dashboard_url());
 	page_footer(buf, cap, &off);
 }
 
