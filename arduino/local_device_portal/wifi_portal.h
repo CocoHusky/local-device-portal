@@ -6,13 +6,17 @@ void setupHostname() {
   uint64_t mac = ESP.getEfuseMac();
 
   char suffix[7];
-  snprintf(suffix, sizeof(suffix), "%04X", (uint16_t)(mac & 0xFFFF));
+  snprintf(suffix, sizeof(suffix), "%06X", (uint32_t)(mac & 0xFFFFFF));
+
+  setupApSsid = String(AP_SSID_PREFIX) + "-" + String(suffix);
 
   deviceHost = "mmwave-" + String(suffix);
   deviceHost.toLowerCase();
 
   dashboardUrl = "http://" + deviceHost + ".local/";
 
+  Serial.print("Setup Wi-Fi: ");
+  Serial.println(setupApSsid);
   Serial.print("Device host: ");
   Serial.println(deviceHost);
 }

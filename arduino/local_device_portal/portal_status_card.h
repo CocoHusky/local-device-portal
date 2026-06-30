@@ -10,7 +10,7 @@ String statusCard() {
   h += "<div class='status-grid'>";
 
   h += "<div class='status-row'><span class='status-label'>Setup Wi-Fi</span><span class='status-value'>";
-  h += htmlEscape(AP_SSID);
+  h += htmlEscape(setupApSsid);
   h += "</span></div>";
 
   h += "<div class='status-row'><span class='status-label'>Setup IP</span><span class='status-value'>192.168.4.1</span></div>";

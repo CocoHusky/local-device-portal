@@ -11,7 +11,7 @@
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const char* AP_SSID = "mmWave-Setup";
+const char* AP_SSID_PREFIX = "mmWave";
 const char* AP_PASS = "focusfetch";
 
 IPAddress AP_IP(192, 168, 4, 1);
@@ -27,7 +27,7 @@ const char* BUILD_ID = __DATE__ " " __TIME__;
 // ── Dashboard response patching ───────────────────────────────────────────────
 //
 // The setup AP is intentionally not a router. When a phone/laptop is still on
-// mmWave-Setup, browser-side calls to public APIs can fail even though the ESP32
+// the setup Wi-Fi, browser-side calls to public APIs can fail even though the ESP32
 // itself is online through STA Wi-Fi. This server wrapper keeps dashboard checks
 // device-side: /data is enriched by the ESP32, and dashboard JavaScript renders
 // those local fields instead of calling public APIs from the browser.
@@ -48,6 +48,7 @@ Preferences prefs;
 String savedSSID;
 String savedPass;
 
+String setupApSsid;
 String deviceHost;
 String dashboardUrl;
 
@@ -360,7 +361,7 @@ String dashboardCopyControls() {
   h += "<input id='dashUrl' readonly value='" + dashboardUrl + "' ";
   h += "onclick='this.select()' style='font-size:.9rem;font-weight:800;color:#fff'>";
   h += "<button class='btn-primary' type='button' onclick='copyDashUrl()'>Copy dashboard URL</button>";
-  h += "<p class='small'>After mmWave-Setup disappears, reconnect to your normal Wi-Fi, open a new browser tab, and paste this address.</p>";
+  h += String("<p class='small'>After ") + htmlEscape(setupApSsid) + " disappears, reconnect to your normal Wi-Fi, open a new browser tab, and paste this address.</p>";
   h += "<script>function copyDashUrl(){var i=document.getElementById('dashUrl');if(!i)return;i.select();i.setSelectionRange(0,9999);if(navigator.clipboard){navigator.clipboard.writeText(i.value);}else{document.execCommand('copy');}}</script>";
   return h;
 }
@@ -401,7 +402,7 @@ void patchSetupHandoffHtml(String& body) {
   body.replace("The setup Wi-Fi is turning off. Your device should reconnect to your normal Wi-Fi, then open the dashboard.",
                "The setup Wi-Fi is turning off. Captive portal browsers can block automatic dashboard redirects, so this page will not redirect.");
   body.replace("This can take a few seconds.",
-               "Copy the dashboard URL below. When mmWave-Setup disconnects, reconnect to your normal Wi-Fi and paste the URL into a normal browser tab.");
+               String("Copy the dashboard URL below. When ") + setupApSsid + " disconnects, reconnect to your normal Wi-Fi and paste the URL into a normal browser tab.");
 
   String openNow = "<a class='btn btn-primary' href='" + dashboardUrl + "'>Open dashboard now</a>";
   body.replace(openNow, dashboardCopyControls());

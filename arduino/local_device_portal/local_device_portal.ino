@@ -19,7 +19,7 @@ void startAP() {
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(AP_IP, AP_IP, AP_MASK);
 
-  bool ok = WiFi.softAP(AP_SSID, AP_PASS);
+  bool ok = WiFi.softAP(setupApSsid.c_str(), AP_PASS);
   apRunning = ok;
 
   if (ok) {
@@ -28,7 +28,7 @@ void startAP() {
     Serial.println();
     Serial.println("AP ON");
     Serial.print("SSID: ");
-    Serial.println(AP_SSID);
+    Serial.println(setupApSsid);
     Serial.print("PASS: ");
     Serial.println(AP_PASS);
     Serial.println("Setup URL: http://192.168.4.1/");
@@ -758,7 +758,7 @@ String resetPage() {
   h += "<div class='card-title'>Reset Wi-Fi</div>";
   h += "<h2>Saved Wi-Fi cleared</h2>";
   h += "<div class='spinner'></div>";
-  h += "<p class='msg info'>The device is restarting. Reconnect to <b>mmWave-Setup</b>, then open <b>http://192.168.4.1/</b>.</p>";
+  h += String("<p class='msg info'>The device is restarting. Reconnect to <b>") + htmlEscape(setupApSsid) + "</b>, then open <b>http://192.168.4.1/</b>.</p>";
   h += "</div>";
 
   h += pageFoot();
@@ -913,7 +913,7 @@ void handleStatus() {
   bool connected = WiFi.status() == WL_CONNECTED;
 
   String json = "{";
-  json += "\"ap_ssid\":\"" + jsonEscape(AP_SSID) + "\",";
+  json += "\"ap_ssid\":\"" + jsonEscape(setupApSsid) + "\",";
   json += "\"sta_connected\":" + String(connected ? "true" : "false") + ",";
   json += "\"saved_ssid\":\"" + jsonEscape(savedSSID) + "\",";
   json += "\"local_ip\":\"" + String(connected ? WiFi.localIP().toString() : "") + "\",";
