@@ -1,7 +1,6 @@
 #include "portal_dns.h"
 
 #include "portal_config.h"
-#include "wifi_manager.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -21,8 +20,11 @@ static void dns_thread(void)
 		return;
 	}
 
-	(void)wifi_manager_bind_socket_to_ap(fd);
-
+	/* Match the Arduino DNSServer behavior: listen on all IPv4 interfaces.
+	 * Do not bind to a Zephyr Wi-Fi device name here. On ESP32 targets the
+	 * AP/STA net_if mapping can differ by board, and bind-to-device can make
+	 * the service appear to be listening while AP clients never reach it.
+	 */
 	struct sockaddr_in addr = { 0 };
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(PORTAL_DNS_PORT);
@@ -34,7 +36,7 @@ static void dns_thread(void)
 		return;
 	}
 
-	LOG_INF("DNS captive responder listening on port %d", PORTAL_DNS_PORT);
+	LOG_INF("DNS captive responder listening on 0.0.0.0:%d", PORTAL_DNS_PORT);
 
 	uint8_t query[512];
 	uint8_t reply[576];
@@ -47,6 +49,12 @@ static void dns_thread(void)
 		if (len < 12) {
 			continue;
 		}
+
+		LOG_INF("DNS query from %u.%u.%u.%u",
+			(uint8_t)(ntohl(peer.sin_addr.s_addr) >> 24),
+			(uint8_t)(ntohl(peer.sin_addr.s_addr) >> 16),
+			(uint8_t)(ntohl(peer.sin_addr.s_addr) >> 8),
+			(uint8_t)ntohl(peer.sin_addr.s_addr));
 
 		memcpy(reply, query, len);
 		reply[2] = 0x81;
