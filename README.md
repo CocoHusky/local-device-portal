@@ -20,33 +20,32 @@ The screenshots below show the intended portal flow. They are sanitized SVG
 redraws of the working Arduino portal screens; real network names, local details,
 public IPs, timestamps, dashboard IDs, and location data are intentionally removed.
 
-### 1. Setup portal
-
-The device starts its setup access point and serves the local portal at
-`http://192.168.4.1/`.
-
-![Setup portal screen](assets/portal/portal-step-setup.svg)
-
-### 2. Network scan
-
-The user scans nearby Wi-Fi networks, chooses the target network, and enters the
-password.
-
-![Sanitized Wi-Fi scan screen](assets/portal/portal-step-scan.svg)
-
-### 3. Connected handoff
-
-After the device joins local Wi-Fi, the setup portal shows the local dashboard
-hostname and gives the user a clear handoff step.
-
-![Connected setup handoff screen](assets/portal/portal-step-connected.svg)
-
-### 4. Local dashboard
-
-The dashboard confirms the device is reachable on local Wi-Fi and shows runtime,
-RSSI, and optional online status fields.
-
-![Local dashboard screen](assets/portal/portal-step-dashboard.svg)
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>1. Setup portal</h3>
+      <p>The device starts its setup access point and serves the local portal at <code>http://192.168.4.1/</code>.</p>
+      <img src="assets/portal/portal-step-setup.svg" alt="Setup portal screen" width="100%" />
+    </td>
+    <td width="50%" valign="top">
+      <h3>2. Network scan</h3>
+      <p>The user scans nearby Wi-Fi networks, chooses the target network, and enters the password.</p>
+      <img src="assets/portal/portal-step-scan.svg" alt="Sanitized Wi-Fi scan screen" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>3. Connected handoff</h3>
+      <p>After the device joins local Wi-Fi, the setup portal shows the local dashboard hostname and a clear handoff step.</p>
+      <img src="assets/portal/portal-step-connected.svg" alt="Connected setup handoff screen" width="100%" />
+    </td>
+    <td width="50%" valign="top">
+      <h3>4. Local dashboard</h3>
+      <p>The dashboard confirms local Wi-Fi connectivity and shows runtime, RSSI, and optional online status fields.</p>
+      <img src="assets/portal/portal-step-dashboard.svg" alt="Local dashboard screen" width="100%" />
+    </td>
+  </tr>
+</table>
 
 ## Firmware Targets
 
