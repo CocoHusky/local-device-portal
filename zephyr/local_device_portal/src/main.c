@@ -9,7 +9,7 @@
 
 LOG_MODULE_REGISTER(local_device_portal, LOG_LEVEL_INF);
 
-#define FW_MARKER "zephyr-portal-http-stable-2026-06-30-02"
+#define FW_MARKER "zephyr-portal-http-stable-2026-06-30-03"
 
 int main(void)
 {
