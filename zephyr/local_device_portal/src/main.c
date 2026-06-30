@@ -1,6 +1,7 @@
 #include "credential_store.h"
 #include "portal_config.h"
 #include "portal_http.h"
+#include "portal_mdns.h"
 #include "portal_state.h"
 #include "wifi_manager.h"
 
@@ -12,7 +13,7 @@
 
 LOG_MODULE_REGISTER(local_device_portal, LOG_LEVEL_INF);
 
-#define FW_MARKER "zephyr-portal-dashboard-2026-06-30-01"
+#define FW_MARKER "zephyr-portal-dashboard-mdns-lite-2026-06-30-01"
 
 int main(void)
 {
@@ -43,6 +44,7 @@ int main(void)
 	}
 
 	portal_http_start();
+	portal_mdns_start();
 
 	while (true) {
 		k_sleep(K_SECONDS(1));
