@@ -14,6 +14,40 @@ or manual DHCP address lookup.
 The numeric DHCP address remains available as a fallback when mDNS is not
 available on the local network.
 
+## Portal Walkthrough
+
+The screenshots below show the intended portal flow. They are sanitized SVG
+redraws of the working Arduino portal screens; real network names, local details,
+public IPs, timestamps, dashboard IDs, and location data are intentionally removed.
+
+### 1. Setup portal
+
+The device starts its setup access point and serves the local portal at
+`http://192.168.4.1/`.
+
+![Setup portal screen](assets/portal/portal-step-setup.svg)
+
+### 2. Network scan
+
+The user scans nearby Wi-Fi networks, chooses the target network, and enters the
+password.
+
+![Sanitized Wi-Fi scan screen](assets/portal/portal-step-scan.svg)
+
+### 3. Connected handoff
+
+After the device joins local Wi-Fi, the setup portal shows the local dashboard
+hostname and gives the user a clear handoff step.
+
+![Connected setup handoff screen](assets/portal/portal-step-connected.svg)
+
+### 4. Local dashboard
+
+The dashboard confirms the device is reachable on local Wi-Fi and shows runtime,
+RSSI, and optional online status fields.
+
+![Local dashboard screen](assets/portal/portal-step-dashboard.svg)
+
 ## Firmware Targets
 
 The Arduino firmware is the current reference behavior. The Zephyr firmware is
@@ -40,6 +74,7 @@ xiao_esp32c6/esp32c6/hpcore       Seeed Studio XIAO ESP32-C6
 ├── zephyr/                       Zephyr app manifest and firmware app
 │   ├── west.yml                  Zephyr workspace manifest
 │   └── local_device_portal/      Zephyr application
+├── assets/                       Sanitized README images and generated assets
 ├── docs/                         Product architecture and roadmap
 ├── .github/workflows/            Build automation
 ├── LICENSE
@@ -68,6 +103,7 @@ by Git. Product code stays in `arduino/`, `zephyr/local_device_portal/`, and
 
 ```text
 zephyr/README.md                  Zephyr setup, build, flash, monitor
+zephyr/ARDUINO_PARITY.md          Arduino-to-Zephyr portal behavior parity
 arduino/README.md                 Arduino workflow
 docs/architecture.md              Product architecture
 docs/zephyr-plan.md               Zephyr implementation roadmap
