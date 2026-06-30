@@ -1,15 +1,17 @@
 #include "credential_store.h"
 #include "portal_config.h"
+#include "portal_dns.h"
 #include "portal_http.h"
 #include "portal_state.h"
 #include "wifi_manager.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/reboot.h>
 
 LOG_MODULE_REGISTER(local_device_portal, LOG_LEVEL_INF);
 
-#define FW_MARKER "zephyr-portal-http-main-probe-2026-06-30-01"
+#define FW_MARKER "zephyr-portal-delayed-dns-2026-06-30-01"
 
 int main(void)
 {
@@ -32,13 +34,29 @@ int main(void)
 		}
 	}
 
-	/* Debug mode: run HTTP first and do not start DNS/handoff yet.  The standalone
-	 * AP TCP probe works when the accept loop is the primary foreground task.
-	 * Match that shape here so we can isolate portal DNS/state side effects.
+	/* HTTP must come up first. On ESP32 WROOM, starting DNS immediately beside
+	 * HTTP produced a kernel TCP LISTEN context that still refused AP clients.
+	 * The direct portal path is stable when HTTP owns port 80 first, so delay DNS
+	 * until after the HTTP listener is alive.
 	 */
 	portal_http_start();
+	k_sleep(K_MSEC(750));
+	portal_dns_start();
+
+	if (credential_store_has_ssid()) {
+		LOG_INF("saved network present but STA auto-connect disabled during setup debug: %s",
+			credential_store_ssid());
+	}
 
 	while (true) {
+		if (portal_state_take_handoff_request()) {
+			k_sleep(K_MSEC(1800));
+			wifi_manager_stop_ap();
+		}
+		if (portal_state_take_reboot_request()) {
+			k_sleep(K_SECONDS(1));
+			sys_reboot(SYS_REBOOT_COLD);
+		}
 		k_sleep(K_SECONDS(1));
 	}
 
