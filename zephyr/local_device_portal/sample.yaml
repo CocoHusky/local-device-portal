@@ -1,10 +1,11 @@
 sample:
   name: Local Device Portal
-  description: Captive Wi-Fi setup portal and local dashboard for ESP32-C6 devices.
+  description: Captive Wi-Fi setup portal and local dashboard for ESP32 devices.
 tests:
   sample.local_device_portal:
     build_only: true
     platform_allow:
+      - esp32_devkitc/esp32/procpu
       - xiao_esp32c6/esp32c6/hpcore
     tags:
       - net
