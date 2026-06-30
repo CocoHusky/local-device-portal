@@ -68,34 +68,6 @@ static void html_escape(const char *in, char *out, size_t out_len)
 	out[o] = '\0';
 }
 
-static int signal_percent(int rssi)
-{
-	int pct = 2 * (rssi + 100);
-
-	if (pct < 0) {
-		pct = 0;
-	}
-	if (pct > 100) {
-		pct = 100;
-	}
-
-	return pct;
-}
-
-static const char *signal_label(int rssi)
-{
-	if (rssi >= -55) {
-		return "Excellent";
-	}
-	if (rssi >= -67) {
-		return "Good";
-	}
-	if (rssi >= -75) {
-		return "Fair";
-	}
-	return "Weak";
-}
-
 static void page_header(char *buf, size_t cap, size_t *off, const char *title)
 {
 	page_append(buf, cap, off,
@@ -172,8 +144,8 @@ void portal_render_setup(char *buf, size_t cap)
 	steps(buf, cap, &off, 1);
 	page_append(buf, cap, &off,
 		"<div class='card'><div class='title'>Step 1 of 3</div><h2>Choose Wi-Fi</h2>"
-		"<p>Pick the Wi-Fi network for this sensor.</p>"
-		"<form method='GET' action='/scan'><button>Scan networks</button></form>"
+		"<p>Enter the Wi-Fi network for this sensor.</p>"
+		"<form method='GET' action='/scan'><button>Continue</button></form>"
 		"<a class='btn ghost' href='/manual'>Type network manually</a></div>");
 	bottom_actions(buf, cap, &off);
 	page_footer(buf, cap, &off);
@@ -188,7 +160,7 @@ void portal_render_manual(char *buf, size_t cap, const char *error)
 	steps(buf, cap, &off, 2);
 	page_append(buf, cap, &off,
 		"<div class='card'><div class='title'>Step 2 of 3</div><h2>Enter Wi-Fi</h2>"
-		"<p>Use this if your network is hidden.</p>");
+		"<p>Type the network name and password.</p>");
 	if (error != NULL && error[0]) {
 		page_append(buf, cap, &off, "<p class='bad'>%s</p>", error);
 	}
@@ -202,57 +174,13 @@ void portal_render_manual(char *buf, size_t cap, const char *error)
 
 void portal_render_scan(char *buf, size_t cap)
 {
-	int scan_ret = wifi_manager_scan_blocking();
-
-	size_t off = 0;
-	page_header(buf, cap, &off, "Scan");
-	status_card(buf, cap, &off);
-	steps(buf, cap, &off, 1);
-	page_append(buf, cap, &off,
-		"<div class='card'><div class='title'>Step 1 of 3</div><h2>Choose Wi-Fi</h2>");
-
-	if (scan_ret != 0) {
-		page_append(buf, cap, &off,
-			"<p class='bad'>Wi-Fi scan failed (%d). Try again or enter it manually.</p>"
-			"<form method='GET' action='/scan'><button>Scan again</button></form>"
-			"<a class='btn ghost' href='/manual'>Type network manually</a></div>",
-			scan_ret);
-		bottom_actions(buf, cap, &off);
-		page_footer(buf, cap, &off);
-		return;
-	}
-
-	int scan_count = wifi_manager_scan_count();
-	const struct portal_net *scan_results = wifi_manager_scan_results();
-
-	if (scan_count <= 0) {
-		page_append(buf, cap, &off,
-			"<p class='bad'>No networks found. Try again or enter it manually.</p>"
-			"<form method='GET' action='/scan'><button>Scan again</button></form>"
-			"<a class='btn ghost' href='/manual'>Type network manually</a></div>");
-		bottom_actions(buf, cap, &off);
-		page_footer(buf, cap, &off);
-		return;
-	}
-
-	page_append(buf, cap, &off, "<p>Tap your network.</p>");
-	for (int i = 0; i < scan_count; i++) {
-		char esc[96];
-		html_escape(scan_results[i].ssid, esc, sizeof(esc));
-		int pct = signal_percent(scan_results[i].rssi);
-		page_append(buf, cap, &off,
-			"<form method='GET' action='/pick'><input type='hidden' name='ssid' value='%s'>"
-			"<button class='net'><div style='display:flex;justify-content:space-between;gap:10px'><b>%s</b><span>%s</span></div>"
-			"<div class='muted' style='display:flex;justify-content:space-between'><span>%s</span><span>%d dBm</span></div>"
-			"<div class='bar'><div class='fill' style='width:%d%%'></div></div></button></form>",
-			esc, esc, scan_results[i].secure ? "&#128274;" : "&nbsp;",
-			signal_label(scan_results[i].rssi), scan_results[i].rssi, pct);
-	}
-	page_append(buf, cap, &off,
-		"<hr><form method='GET' action='/scan'><button class='ghost'>Scan again</button></form>"
-		"<a class='btn ghost' href='/manual'>Type network manually</a></div>");
-	bottom_actions(buf, cap, &off);
-	page_footer(buf, cap, &off);
+	/* Keep /scan as a stable route for the portal, but do not start a live Wi-Fi
+	 * scan from the setup AP. On ESP32 AP-STA this can interrupt the client AP
+	 * connection, while Zephyr's official AP-STA sample keeps AP serving and uses
+	 * the STA interface only for connection.
+	 */
+	portal_render_manual(buf, cap,
+		"Zephyr AP-STA mode keeps setup Wi-Fi online by skipping live scans here. Type the Wi-Fi name below.");
 }
 
 void portal_render_pick(char *buf, size_t cap, const char *ssid,
