@@ -6,18 +6,19 @@ or manual DHCP address lookup.
 
 ## User Flow
 
-1. Join the device setup network: `mmWave-Setup`.
+1. Join the device setup network: `mmWave-XXXXXX`.
 2. Open the captive setup page or visit `http://192.168.4.1/`.
 3. Select a local Wi-Fi network and enter the password.
-4. Use the dashboard at `http://mmwave-xxxx.local/`.
+4. Use the dashboard at `http://mmwave-xxxxxx.local/`.
 
 The numeric DHCP address remains available as a fallback when mDNS is not
 available on the local network.
 
 ## Firmware Targets
 
-The Arduino firmware is the current reference implementation. The Zephyr
-firmware is the shared multi-board implementation path.
+The Arduino firmware is the current reference behavior. The Zephyr firmware is
+the shared multi-board implementation path and should preserve the same setup
+flow, routes, and dashboard handoff behavior.
 
 ```text
 arduino/local_device_portal/      Arduino firmware

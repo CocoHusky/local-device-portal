@@ -1,163 +1,205 @@
-# Zephyr
+# Zephyr Firmware
 
-This directory contains the Zephyr port.
+This directory contains the Zephyr workspace manifest and firmware application
+for Local Device Portal.
 
-The Arduino sketch is still the UX reference implementation.
-
-## App Code
-
-```text
-zephyr/local_device_portal
-```
-
-## App Architecture
+## Application Layout
 
 ```text
-src/main.c              boot sequence and service startup
-src/portal_config.h     shared product/network constants
-src/portal_state.*      hostname, dashboard URL, handoff state
-src/credential_store.*  settings/NVS-backed Wi-Fi credentials
-src/wifi_manager.*      AP, STA connect, scan, Wi-Fi events
-src/portal_http.*       HTTP socket server and route handling
-src/portal_dns.*        captive DNS responder
-src/portal_render.*     captive portal and dashboard HTML rendering
+zephyr/
+├── west.yml
+└── local_device_portal/
+    ├── CMakeLists.txt
+    ├── VERSION
+    ├── prj.conf
+    ├── sample.yaml
+    ├── boards/
+    │   ├── esp32_devkitc_esp32_procpu.conf
+    │   └── xiao_esp32c6_esp32c6_hpcore.conf
+    └── src/
+        ├── main.c
+        ├── portal_config.h
+        ├── portal_state.*
+        ├── credential_store.*
+        ├── wifi_manager.*
+        ├── portal_http.*
+        ├── portal_dns.*
+        └── portal_render.*
 ```
 
-The modules are split so board-specific Wi-Fi behavior, storage, HTTP routes,
-and UI rendering can evolve independently.
+Shared product behavior lives in `src/`. Board-specific configuration belongs
+in `boards/`.
 
-## west Manifest
+## Supported Boards
 
 ```text
-zephyr/west.yml
+esp32_devkitc/esp32/procpu        ESP-WROOM-32 style boards
+xiao_esp32c6/esp32c6/hpcore       Seeed Studio XIAO ESP32-C6
 ```
 
-Pinned Zephyr revision: `v4.4.0`
+ESP-WROOM-32 uses the classic ESP32 Xtensa toolchain. XIAO ESP32-C6 uses the
+RISC-V toolchain.
 
-## Workspace Location
+Some ESP-WROOM-32 modules report ESP32 chip revision v1.0. The WROOM board
+configuration opts into that revision with
+`CONFIG_ESP32_USE_UNSUPPORTED_REVISION=y`.
 
-Use this repository root as the `west` workspace root:
+## New Computer Setup
 
-```text
-/Users/<username>/Documents/GitHub/local-device-portal
-```
+Run these from a clean macOS machine.
 
-## Target Board
-
-Default target:
-
-```text
-xiao_esp32c6/esp32c6/hpcore
-```
-
-Use a different ESP32-C6 board name if your hardware needs it.
-
-## Install Tools on macOS
-
-Run:
+1. Install host tools:
 
 ```sh
 brew install cmake ninja gperf ccache dtc python3
 python3 -m pip install --user west
+export PATH="$HOME/.local/bin:$HOME/Library/Python/3.14/bin:$PATH"
 ```
 
-Add Python user scripts to `PATH` if `west` is not found:
+Add the same `PATH` export to your shell profile if `west` or `esptool` is not
+found in new terminal windows.
 
-```sh
-export PATH="$HOME/Library/Python/3.14/bin:$PATH"
-```
+2. Install the Zephyr SDK.
 
-Install the Zephyr SDK:
+Download and install the macOS Zephyr SDK that matches this workspace. The
+current local setup uses:
 
 ```text
-https://docs.zephyrproject.org/latest/develop/toolchains/zephyr_sdk.html
+~/zephyr-sdk-0.17.4
 ```
 
-## Initialize west
-
-Run these from the repository root:
+After installing, enable the ESP-WROOM-32 Xtensa toolchain:
 
 ```sh
-cd /Users/<username>/Documents/GitHub/local-device-portal
+cd ~/zephyr-sdk-0.17.4
+./setup.sh -t xtensa-espressif_esp32_zephyr-elf
+```
+
+Verify the WROOM compiler exists:
+
+```sh
+ls ~/zephyr-sdk-0.17.4/xtensa-espressif_esp32_zephyr-elf/bin/xtensa-espressif_esp32_zephyr-elf-gcc
+```
+
+3. Initialize the Zephyr workspace:
+
+```sh
+cd /path/to/local-device-portal
 west init -l zephyr
 west update
 west zephyr-export
 python3 -m pip install --user -r deps/zephyr/scripts/requirements.txt
+west blobs fetch hal_espressif
+python3 -m pip install --user "esptool>=5.2.0"
+export PATH="$HOME/.local/bin:$HOME/Library/Python/3.14/bin:$PATH"
 ```
 
-After `west update`, the upstream Zephyr tree should be here:
+Generated workspace directories include:
 
 ```text
-/Users/<username>/Documents/GitHub/local-device-portal/deps/zephyr
+deps/
+modules/
+tools/
+bootloader/
+build*/
 ```
+
+These are generated workspace files and should not be committed.
 
 ## Build
 
-Run:
+Use a board-specific build directory. This avoids stale build state when
+switching between ESP32-C6 and ESP-WROOM-32.
+
+Build ESP-WROOM-32:
 
 ```sh
-cd /Users/<username>/Documents/GitHub/local-device-portal
+cd /path/to/local-device-portal
+export PATH="$HOME/.local/bin:$HOME/Library/Python/3.14/bin:$PATH"
+
 west build -p=always \
+  -d build-wroom \
+  -b esp32_devkitc/esp32/procpu \
+  zephyr/local_device_portal
+```
+
+Build XIAO ESP32-C6:
+
+```sh
+cd /path/to/local-device-portal
+export PATH="$HOME/.local/bin:$HOME/Library/Python/3.14/bin:$PATH"
+
+west build -p=always \
+  -d build-xiao-c6 \
   -b xiao_esp32c6/esp32c6/hpcore \
   zephyr/local_device_portal
 ```
 
-## Flash
+## Flash ESP-WROOM-32
 
-Connect the ESP32-C6 board over USB, then run:
-
-```sh
-cd /Users/<username>/Documents/GitHub/local-device-portal
-west flash --port /dev/cu.usbmodem14401
-```
-
-List ports:
+List serial ports:
 
 ```sh
 ls /dev/cu.*
 ```
 
+Typical WROOM USB serial port:
+
+```text
+/dev/cu.usbserial-0001
+```
+
+Flash:
+
+```sh
+west flash -d build-wroom -- --esp-device /dev/cu.usbserial-0001
+```
+
+If flashing does not start, hold `BOOT`, run the flash command, then release
+`BOOT` when writing begins.
+
 ## Monitor
 
 ```sh
-screen /dev/cu.usbmodem14401 115200
+screen /dev/cu.usbserial-0001 115200
 ```
 
-If your Zephyr tree provides the Espressif monitor extension:
+Exit `screen` with `Ctrl-A`, then `K`, then `Y`.
 
-```sh
-cd /Users/<username>/Documents/GitHub/local-device-portal
-west espressif monitor
+## Expected Behavior
+
+After flashing, serial logs should show the setup portal starting. Join:
+
+```text
+mmWave-XXXXXX
 ```
 
-## Board Check
+The suffix is derived from the device identity, so each board has a distinct
+setup network.
 
-```sh
-west boards | grep esp32c6
+Then open:
+
+```text
+http://192.168.4.1/
 ```
 
-## Expected behavior
+The portal should provide:
 
-The Zephyr app should match Arduino:
-
-- Setup AP: `mmWave-Setup`
-- Setup URL: `http://192.168.4.1/`
-- Captive DNS responder on UDP port 53
-- HTTP setup portal on port 80
-- Wi-Fi scan page
-- Network selection page
-- Password/connect page
-- Local dashboard page
-- Credential storage through Zephyr settings/NVS
-- Dashboard URL target: `http://mmwave-xxxx.local/`
-- Numeric IP fallback where mDNS is not available
+- Captive setup page
+- Wi-Fi scan
+- Network selection
+- Password entry
+- Saved credentials through Zephyr settings/NVS
+- Dashboard URL: `http://mmwave-xxxxxx.local/`
+- Numeric IP fallback
 
 ## Troubleshooting
 
-- If `west` is not found, add Python's user script directory to `PATH`.
-- If `west update` fails, confirm the machine has internet access and GitHub access.
-- If CMake cannot find Zephyr, run `west zephyr-export` from the workspace.
-- If Python modules are missing, rerun `python3 -m pip install --user -r deps/zephyr/scripts/requirements.txt`.
-- If the board name is unknown, run `west boards | grep esp32c6` and update the `-b` value.
-- If flashing fails because the port is busy, close Serial Monitor, `screen`, or any other terminal using the USB port.
-- If the setup AP does not appear after flashing, reset the board and check serial logs at `115200`.
+- `west` not found: add `$HOME/.local/bin` to `PATH`.
+- `esptool>=5.0.2 not found`: install `esptool` and ensure `$HOME/.local/bin` is on `PATH`.
+- Missing Espressif blobs: run `west blobs fetch hal_espressif`.
+- `ESP_IDF_PATH is not set`: run `west update hal_espressif`.
+- Missing `xtensa-espressif_esp32_zephyr-elf-gcc`: run `~/zephyr-sdk-0.17.4/setup.sh -t xtensa-espressif_esp32_zephyr-elf`.
+- ESP32 revision v1.0 warning: the WROOM board config already enables `CONFIG_ESP32_USE_UNSUPPORTED_REVISION=y`.
+- ESP32 runner rejects `--port`: use `west flash -d build-wroom -- --esp-device /dev/cu.usbserial-0001`.
+- Unknown board name: run `west boards | grep -i esp32`.
