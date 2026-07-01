@@ -1,7 +1,6 @@
 #include "credential_store.h"
 #include "portal_config.h"
 #include "portal_http.h"
-#include "portal_mdns.h"
 #include "portal_state.h"
 #include "wifi_manager.h"
 
@@ -44,7 +43,6 @@ int main(void)
 	}
 
 	portal_http_start();
-	portal_mdns_start();
 
 	while (true) {
 		k_sleep(K_SECONDS(1));
