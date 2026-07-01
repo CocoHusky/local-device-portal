@@ -61,8 +61,22 @@ Current Zephyr board targets:
 
 ```text
 esp32_devkitc/esp32/procpu        ESP-WROOM-32 style boards
+esp8684_devkitm                   ESP32-C2 class ESP8684-DevKitM boards
 xiao_esp32c6/esp32c6/hpcore       Seeed Studio XIAO ESP32-C6
 ```
+
+Other ESP32 boards can use the same app when Zephyr provides a matching Wi-Fi
+board target. Useful reference targets to compare against include
+`esp32c3_devkitm`, `esp32c3_devkitc`, `esp32c6_devkitc/esp32c6/hpcore`,
+`esp32s2_devkitc`, and `esp32s3_devkitc/esp32s3/procpu`. Confirm the exact
+board name in your workspace with `west boards | grep -i esp32`.
+
+ESP32-C2 class support uses Zephyr's `esp8684_devkitm` board target. Zephyr
+documents that board as an ESP32-C2 SoC target:
+https://docs.zephyrproject.org/latest/boards/espressif/esp8684_devkitm/doc/index.html
+
+Espressif's board guide is here:
+https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp8684/esp8684-devkitm-1/user_guide.html
 
 ## Repository Layout
 
@@ -83,10 +97,10 @@ xiao_esp32c6/esp32c6/hpcore       Seeed Studio XIAO ESP32-C6
 ```text
 Arduino
   Tested: ESP32-C6
-  Portable to other ESP32 boards that support Wi-Fi AP+STA, Preferences, and mDNS
+  Expected-compatible: ESP-WROOM-32, ESP32-C2, ESP32-C3, ESP32-C6, ESP32-S2, ESP32-S3 boards that support Wi-Fi AP+STA, Preferences, and mDNS
 
 Zephyr
-  Tested: ESP-WROOM-32, XIAO ESP32-C6
+  Build-verified: ESP-WROOM-32, XIAO ESP32-C6, ESP32-C2 class ESP8684-DevKitM
   Portable to other ESP32 boards after adding and verifying the matching Zephyr board target
 ```
 

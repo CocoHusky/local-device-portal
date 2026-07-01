@@ -15,6 +15,7 @@ zephyr/
     ├── sample.yaml
     ├── boards/
     │   ├── esp32_devkitc_esp32_procpu.conf
+    │   ├── esp8684_devkitm.conf
     │   └── xiao_esp32c6_esp32c6_hpcore.conf
     └── src/
         ├── main.c
@@ -34,15 +35,30 @@ in `boards/`.
 
 ```text
 esp32_devkitc/esp32/procpu        ESP-WROOM-32 style boards
+esp8684_devkitm                   ESP32-C2 class ESP8684-DevKitM boards
 xiao_esp32c6/esp32c6/hpcore       Seeed Studio XIAO ESP32-C6
 ```
 
 ESP-WROOM-32 uses the classic ESP32 Xtensa toolchain. ESP32-C6 boards use the
-RISC-V toolchain.
+RISC-V toolchain. ESP32-C2 class ESP8684 boards use the `esp8684_devkitm`
+Zephyr board target.
 
-ESP32-C2 support is a target for the shared app, but this workspace does not
-currently ship a Zephyr board target for it. Add the matching Zephyr board
-definition before documenting a C2 build command.
+Other ESP32 Zephyr board targets with Wi-Fi support can use the same app after
+adding a matching file in `zephyr/local_device_portal/boards/` and verifying the
+build. Examples in Zephyr include `esp32c3_devkitm`, `esp32c3_devkitc`,
+`esp32c6_devkitc/esp32c6/hpcore`, `esp32s2_devkitc`, and
+`esp32s3_devkitc/esp32s3/procpu`. Confirm available targets with:
+
+```sh
+west boards | grep -i esp32
+```
+
+ESP32-C2 reference pages:
+
+```text
+https://docs.zephyrproject.org/latest/boards/espressif/esp8684_devkitm/doc/index.html
+https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp8684/esp8684-devkitm-1/user_guide.html
+```
 
 Some ESP-WROOM-32 modules report ESP32 chip revision v1.0. The WROOM board
 configuration opts into that revision with
@@ -136,6 +152,18 @@ export PATH="$HOME/.local/bin:$HOME/Library/Python/3.14/bin:$PATH"
 west build -p=always \
   -d build-xiao-c6 \
   -b xiao_esp32c6/esp32c6/hpcore \
+  zephyr/local_device_portal
+```
+
+Build ESP32-C2 class ESP8684-DevKitM:
+
+```sh
+cd /path/to/local-device-portal
+export PATH="$HOME/.local/bin:$HOME/Library/Python/3.14/bin:$PATH"
+
+west build -p=always \
+  -d build-esp8684 \
+  -b esp8684_devkitm \
   zephyr/local_device_portal
 ```
 
