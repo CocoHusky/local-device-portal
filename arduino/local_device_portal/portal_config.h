@@ -13,8 +13,10 @@
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const char* AP_SSID_PREFIX = "mmWave";
-const char* AP_PASS = "focusfetch";
+const char* PRODUCT_TITLE = "Wifi Device";
+const char* AP_SSID_PREFIX = "WifiDevice";
+const char* DEVICE_HOST_PREFIX = "wifi-device";
+const char* AP_PASS = "wifi-device-setup";
 
 IPAddress AP_IP(192, 168, 4, 1);
 IPAddress AP_MASK(255, 255, 255, 0);

@@ -1,6 +1,6 @@
-# Arduino MVP
+# Arduino Firmware
 
-The Arduino sketch is the working portal firmware.
+The Arduino sketch is the reference portal firmware.
 
 ## Portal Code
 
@@ -63,8 +63,7 @@ After boot, the device should print setup information similar to:
 
 ```text
 AP ON
-SSID: mmWave-Setup
-PASS: focusfetch
+SSID: WifiDevice-XXXXXX
 Setup URL: http://192.168.4.1/
 ```
 
@@ -94,8 +93,8 @@ Sketch: arduino/local_device_portal/local_device_portal.ino
 Connect your computer or phone to:
 
 ```text
-Network: mmWave-Setup
-Password: focusfetch
+Network: WifiDevice-XXXXXX
+Password: wifi-device-setup
 ```
 
 If a captive portal window appears, use it. If it does not appear, open:
@@ -115,14 +114,14 @@ Then:
 Preferred dashboard URL:
 
 ```text
-http://mmwave-xxxx.local/
+http://wifi-device-xxxxxx.local/
 ```
 
 Use the numeric IP on the success page if `.local` does not resolve.
 
 ## Reset Wi-Fi
 
-Click `Reset saved Wi-Fi` in the portal or dashboard. The board restarts and returns to `mmWave-Setup`.
+Click `Reset saved Wi-Fi` in the portal or dashboard. The board restarts and returns to `WifiDevice-XXXXXX`.
 
 ## Development Mode
 
@@ -148,5 +147,5 @@ Uses only ESP32 Arduino core libraries:
 
 - If upload fails because the port is busy, close Arduino Serial Monitor or any other serial terminal.
 - If no setup Wi-Fi appears, reset the board and watch Serial Monitor at `115200`.
-- If `http://192.168.4.1/` does not load, confirm your computer or phone is connected to `mmWave-Setup`.
+- If `http://192.168.4.1/` does not load, confirm your computer or phone is connected to `WifiDevice-XXXXXX`.
 - If `.local` does not work after setup, use the backup IP address from the success page.

@@ -10,7 +10,7 @@ void setupHostname() {
 
   setupApSsid = String(AP_SSID_PREFIX) + "-" + String(suffix);
 
-  deviceHost = "mmwave-" + String(suffix);
+  deviceHost = String(DEVICE_HOST_PREFIX) + "-" + String(suffix);
   deviceHost.toLowerCase();
 
   dashboardUrl = "http://" + deviceHost + ".local/";

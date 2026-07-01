@@ -1,4 +1,4 @@
-// mmWave WiFi Provisioning — ESP32-C6 Arduino
+// Wifi Device provisioning — ESP32 Arduino
 // v8: captive-portal-safe setup, mDNS dashboard, cleaner product flow
 //
 // Requires:
@@ -29,8 +29,6 @@ void startAP() {
     Serial.println("AP ON");
     Serial.print("SSID: ");
     Serial.println(setupApSsid);
-    Serial.print("PASS: ");
-    Serial.println(AP_PASS);
     Serial.println("Setup URL: http://192.168.4.1/");
   } else {
     Serial.println("AP FAILED");
@@ -445,9 +443,9 @@ hr{border:0;border-top:1px solid var(--border);margin:1rem 0}
 <body>
 <div class="wrap">
 <div class="header">
-  <div class="logo">MW</div>
+  <div class="logo">WD</div>
   <div>
-    <h1>mmWave Sensor</h1>
+    <h1>Wifi Device</h1>
     <p>Wi-Fi setup</p>
   </div>
 </div>
@@ -465,7 +463,7 @@ String pageFoot() {
 // ── Pages ─────────────────────────────────────────────────────────────────────
 
 String setupPage(const String& message = "") {
-  String h = pageHead("mmWave Wi-Fi Setup");
+  String h = pageHead("Wifi Device");
 
   h += statusCard();
   h += stepsBar(1);
@@ -656,7 +654,7 @@ String successPage(const String& ssid, const String& ip) {
   h += "<div class='card'>";
   h += "<div class='card-title'>Step 3 of 3</div>";
   h += "<h2>Connected</h2>";
-  h += "<p>The sensor joined <b style='color:#fff'>" + htmlEscape(ssid) + "</b>.</p>";
+  h += "<p>The device joined <b style='color:#fff'>" + htmlEscape(ssid) + "</b>.</p>";
 
   h += "<p>Dashboard:</p>";
   h += "<div class='hostname'>" + htmlEscape(dashboardUrl) + "</div>";
@@ -706,13 +704,13 @@ String handoffPage(const String& ip) {
 String dashboardPage() {
   String ip = WiFi.localIP().toString();
 
-  String h = pageHead("mmWave Dashboard");
+  String h = pageHead("Wifi Device");
 
   h += statusCard();
 
   h += "<div class='card'>";
   h += "<div class='card-title'>Dashboard</div>";
-  h += "<h2>Sensor ready</h2>";
+  h += "<h2>Device ready</h2>";
   h += "<p class='msg ok'>Connected on local Wi-Fi.</p>";
   h += "<p>Dashboard: <b style='color:#fff'>" + htmlEscape(dashboardUrl) + "</b></p>";
   h += "<p class='small'>Backup IP: " + htmlEscape(ip) + "</p>";
@@ -991,7 +989,7 @@ void setup() {
   delay(700);
 
   Serial.println();
-  Serial.println("=== mmWave WiFi Provisioning v8 ===");
+  Serial.println("=== Wifi Device provisioning v8 ===");
 
   WiFi.persistent(false);
   WiFi.setSleep(false);
