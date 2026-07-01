@@ -110,8 +110,9 @@ static void page_header(char *buf, size_t cap, size_t *off, const char *title)
 		"button,.primary{background:linear-gradient(135deg,#00b8f0,#46d8ff);color:#001018}.ghost{background:#ffffff05;color:#9fb0c8;border:1px solid #1b2d4a}.danger{background:#ff5c5c14;color:#ff5c5c;border:1px solid #ff5c5c3d}"
 		"input{background:#07101f;color:#d8e6f7;border:1px solid #1b2d4a;font-weight:500}.row{display:flex;justify-content:space-between;border-bottom:1px solid #fff1;padding:6px 0;gap:12px}.good{color:#00d97e}.bad{color:#ff5c5c}.net{text-align:left;background:#07101f;color:#d8e6f7;border:1px solid #1b2d4a}.bar{height:10px;border-radius:99px;background:#26344f;overflow:hidden}.fill{height:100%%;border-radius:99px;background:linear-gradient(90deg,#00b8f0,#00d97e)}"
 		".steps{display:flex;align-items:center;margin:12px 0}.dot{width:28px;height:28px;border-radius:50%%;display:flex;align-items:center;justify-content:center;border:2px solid #274262;color:#7890ad;font-weight:900}.dot.on{border-color:#00b8f0;color:#00b8f0;background:#00b8f014}.dot.done{border-color:#00d97e;background:#00d97e;color:#00140b}.line{flex:1;height:2px;background:#274262}.line.done{background:#00d97e}.msg{border:1px solid #1b2d4a;border-radius:12px;padding:12px;background:#081325;color:#9fb0c8}.ip{font-size:20px;color:#00d97e;font-weight:900;word-break:break-all}.host{font-size:18px;color:#fff;font-weight:900;word-break:break-all}.small{font-size:12px;color:#7890ad}.spin{width:52px;height:52px;border-radius:50%%;border:4px solid #ffffff14;border-top-color:#00b8f0;border-right-color:#00d97e;animation:spin .85s linear infinite;margin:18px auto}@keyframes spin{to{transform:rotate(360deg)}}"
-		"</style></head><body><div class='wrap'><div class='card'><h1>mmWave Sensor</h1><div class='muted'>Wi-Fi setup</div></div>",
-		title);
+		"</style></head><body><div class='wrap'><div class='card'><h1>%s</h1><div class='muted'>Wi-Fi setup</div></div>",
+		title,
+		PORTAL_PRODUCT_TITLE);
 }
 
 static void page_footer(char *buf, size_t cap, size_t *off)
@@ -351,7 +352,7 @@ void portal_render_success(char *buf, size_t cap, const char *ssid)
 	steps(buf, cap, &off, 3);
 	page_append(buf, cap, &off,
 		"<div class='card'><div class='title'>Step 3 of 3</div><h2>Connected</h2>"
-		"<p>The sensor joined <b style='color:white'>%s</b>.</p>"
+		"<p>The device joined <b style='color:white'>%s</b>.</p>"
 		"<p>Dashboard:</p><div class='host'>%s</div><p class='small'>Backup IP: %s</p>"
 		"<p>Click below to close setup Wi-Fi. Then reconnect to your normal Wi-Fi and open the dashboard.</p>"
 		"<form method='POST' action='/handoff'><button>Go to dashboard</button></form></div>",
@@ -383,7 +384,7 @@ void portal_render_dashboard(char *buf, size_t cap)
 	page_header(buf, cap, &off, "Dashboard");
 	status_card(buf, cap, &off);
 	page_append(buf, cap, &off,
-		"<div class='card'><div class='title'>Dashboard</div><h2>Sensor ready</h2>"
+		"<div class='card'><div class='title'>Dashboard</div><h2>Device ready</h2>"
 		"<p class='good'>Connected on local Wi-Fi.</p><p>Sensor data will appear here next.</p></div>");
 	bottom_actions(buf, cap, &off);
 	page_footer(buf, cap, &off);

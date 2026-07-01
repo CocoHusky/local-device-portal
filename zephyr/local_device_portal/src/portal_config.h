@@ -1,8 +1,10 @@
 #ifndef PORTAL_CONFIG_H
 #define PORTAL_CONFIG_H
 
-#define PORTAL_AP_SSID_PREFIX "mmWave"
-#define PORTAL_AP_PASS      "focusfetch"
+#define PORTAL_PRODUCT_TITLE "Wifi Device"
+#define PORTAL_AP_SSID_PREFIX "WifiDevice"
+#define PORTAL_HOST_PREFIX   "wifi-device"
+#define PORTAL_AP_PASS      "wifi-device-setup"
 #define PORTAL_AP_IP        "192.168.4.1"
 #define PORTAL_AP_MASK      "255.255.255.0"
 #define PORTAL_DHCP_START_IP "192.168.4.2"

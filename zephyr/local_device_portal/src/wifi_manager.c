@@ -353,10 +353,10 @@ int wifi_manager_start_ap(void)
 	}
 
 	ap_enabled = true;
-	LOG_INF("setup AP enabled: ssid=%s pass=%s iface=%p",
-		portal_state_ap_ssid(), PORTAL_AP_PASS, ap_net_iface);
-	LOG_INF("SETUP PORTAL READY: join %s, password %s, open http://%s/",
-		portal_state_ap_ssid(), PORTAL_AP_PASS, PORTAL_AP_IP);
+	LOG_INF("setup AP enabled: ssid=%s iface=%p",
+		portal_state_ap_ssid(), ap_net_iface);
+	LOG_INF("SETUP PORTAL READY: join %s, open http://%s/",
+		portal_state_ap_ssid(), PORTAL_AP_IP);
 
 	return 0;
 }

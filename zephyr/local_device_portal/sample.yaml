@@ -6,6 +6,7 @@ tests:
     build_only: true
     platform_allow:
       - esp32_devkitc/esp32/procpu
+      - esp32c6_devkitc/esp32c6/hpcore
       - xiao_esp32c6/esp32c6/hpcore
     tags:
       - net

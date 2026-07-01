@@ -13,7 +13,7 @@
 
 LOG_MODULE_REGISTER(local_device_portal, LOG_LEVEL_INF);
 
-#define FW_MARKER "zephyr-portal-dashboard-mdns-lite-2026-06-30-01"
+#define FW_MARKER "wifi-device-zephyr-2026-07-01"
 
 int main(void)
 {

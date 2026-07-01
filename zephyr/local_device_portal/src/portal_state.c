@@ -31,8 +31,8 @@ void portal_state_init(void)
 		suffix[2] = (uint8_t)fallback;
 	}
 
-	snprintk(device_host, sizeof(device_host), "mmwave-%02x%02x%02x",
-		 suffix[0], suffix[1], suffix[2]);
+	snprintk(device_host, sizeof(device_host), "%s-%02x%02x%02x",
+		 PORTAL_HOST_PREFIX, suffix[0], suffix[1], suffix[2]);
 	snprintk(ap_ssid, sizeof(ap_ssid), "%s-%02X%02X%02X",
 		 PORTAL_AP_SSID_PREFIX, suffix[0], suffix[1], suffix[2]);
 	snprintk(dashboard_url, sizeof(dashboard_url), "http://%s.local/",
