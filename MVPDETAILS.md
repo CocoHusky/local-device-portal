@@ -29,8 +29,8 @@ As a user, I want to set up a Wi-Fi sensor without downloading an app, so I can 
 User connects to the device AP:
 
 ```text
-SSID: mmWave-Setup
-Password: focusfetch
+SSID: WifiDevice-XXXXXX
+Password: wifi-device-setup
 Setup URL: http://192.168.4.1/
 ```
 
@@ -51,7 +51,7 @@ It should not show technical details like channel number in the user-facing list
 
 After credentials are submitted, the device joins local Wi-Fi and shows:
 
-- Primary dashboard URL: `http://mmwave-xxxx.local/`
+- Primary dashboard URL: `http://wifi-device-xxxx.local/`
 - Backup IP address: `http://192.168.x.x/`
 
 When the user chooses to go to the dashboard, the setup AP shuts down and the host device should reconnect to the local Wi-Fi. The page explains that this can take up to 30 seconds.
@@ -93,7 +93,7 @@ When the user chooses to go to the dashboard, the setup AP shuts down and the ho
 - Captive portal opens or manual `192.168.4.1` works.
 - Network scan works from the setup page.
 - User can choose a network and connect.
-- Dashboard is accessible from `mmwave-xxxx.local` after connection.
+- Dashboard is accessible from `wifi-device-xxxx.local` after connection.
 - Backup IP is visible when needed.
 - Reset saved Wi-Fi works.
 - No native app is required.

@@ -9,7 +9,7 @@ This project is a browser-first provisioning layer for local Wi-Fi devices. It i
 ```text
 Device boot
 ├── Start setup AP
-│   ├── SSID: mmWave-Setup
+│   ├── SSID: WifiDevice-XXXXXX
 │   ├── IP: 192.168.4.1
 │   └── DNS wildcard points clients to setup page
 ├── Serve setup pages
@@ -18,7 +18,7 @@ Device boot
 │   ├── Enter password
 │   └── Connect to local Wi-Fi
 ├── Start local dashboard
-│   ├── mDNS hostname: mmwave-xxxx.local
+│   ├── mDNS hostname: wifi-device-xxxx.local
 │   └── Backup IP: router-assigned DHCP address
 └── Optional handoff
     ├── Stop setup AP
@@ -38,8 +38,8 @@ This makes the flow less flashy, but much more reliable.
 The device always starts a setup AP during development.
 
 ```text
-SSID: mmWave-Setup
-Password: focusfetch
+SSID: WifiDevice-XXXXXX
+Password: wifi-device-setup
 IP: 192.168.4.1
 ```
 
@@ -58,7 +58,7 @@ On the success page, the user can choose to go to the dashboard. The device then
 Primary dashboard address:
 
 ```text
-http://mmwave-xxxx.local/
+http://wifi-device-xxxx.local/
 ```
 
 The suffix is derived from the ESP32 MAC address to avoid collisions across multiple devices.

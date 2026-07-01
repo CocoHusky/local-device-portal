@@ -37,8 +37,12 @@ esp32_devkitc/esp32/procpu        ESP-WROOM-32 style boards
 xiao_esp32c6/esp32c6/hpcore       Seeed Studio XIAO ESP32-C6
 ```
 
-ESP-WROOM-32 uses the classic ESP32 Xtensa toolchain. XIAO ESP32-C6 uses the
+ESP-WROOM-32 uses the classic ESP32 Xtensa toolchain. ESP32-C6 boards use the
 RISC-V toolchain.
+
+ESP32-C2 support is a target for the shared app, but this workspace does not
+currently ship a Zephyr board target for it. Add the matching Zephyr board
+definition before documenting a C2 build command.
 
 Some ESP-WROOM-32 modules report ESP32 chip revision v1.0. The WROOM board
 configuration opts into that revision with
@@ -171,7 +175,7 @@ Exit `screen` with `Ctrl-A`, then `K`, then `Y`.
 After flashing, serial logs should show the setup portal starting. Join:
 
 ```text
-mmWave-XXXXXX
+WifiDevice-XXXXXX
 ```
 
 The suffix is derived from the device identity, so each board has a distinct
@@ -190,7 +194,7 @@ The portal should provide:
 - Password entry
 - AP-STA connection using Zephyr's separate AP and STA Wi-Fi interfaces
 - Saved credentials through Zephyr settings/NVS
-- Dashboard URL: `http://mmwave-xxxxxx.local/`
+- Dashboard URL: `http://wifi-device-xxxxxx.local/`
 - Numeric IP fallback
 
 The Zephyr implementation intentionally does not run an interactive Wi-Fi scan

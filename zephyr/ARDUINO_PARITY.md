@@ -21,7 +21,7 @@ Zephyr parity flow:
 ```text
 1. Get SAP/AP Wi-Fi interface.
 2. Assign AP IPv4 address 192.168.4.1/24.
-3. Enable AP mode with SSID mmWave-xxxxxx and password focusfetch.
+3. Enable AP mode with SSID WifiDevice-xxxxxx and password wifi-device-setup.
 4. Start DHCP server from 192.168.4.2.
 5. Start captive DNS responder on 0.0.0.0:53.
 6. Start HTTP server on 0.0.0.0:80.
@@ -57,9 +57,9 @@ west build -p=always \
 After flashing, serial logs should show:
 
 ```text
-setup AP enabled: mmWave-xxxxxx / 192.168.4.1
+setup AP enabled: WifiDevice-xxxxxx / 192.168.4.1
 setup DHCP started: 192.168.4.2
-setup AP ready: mmWave-xxxxxx / 192.168.4.1
+setup AP ready: WifiDevice-xxxxxx / 192.168.4.1
 DNS captive responder listening on 0.0.0.0:53
 HTTP server listening on 0.0.0.0:80
 ```

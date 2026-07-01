@@ -9,14 +9,14 @@ preserving the browser-first setup flow.
 
 ```text
 First-run setup:
-  Join mmWave-XXXXXX
+  Join WifiDevice-XXXXXX
   Open captive setup page or http://192.168.4.1/
   Select Wi-Fi
   Enter password
   Connect
 
 Daily use:
-  Open http://mmwave-xxxxxx.local/
+  Open http://wifi-device-xxxxxx.local/
   Use numeric IP as fallback
 ```
 
@@ -70,7 +70,7 @@ esp32_devkitc/esp32/procpu
 
 ### 2. Setup AP
 
-- Start AP as `mmWave-XXXXXX`.
+- Start AP as `WifiDevice-XXXXXX`.
 - Assign `192.168.4.1`.
 - Serve setup page in a normal browser.
 
@@ -89,7 +89,7 @@ esp32_devkitc/esp32/procpu
 ### 5. Dashboard
 
 - Serve dashboard on the local network.
-- Prefer `http://mmwave-xxxxxx.local/`.
+- Prefer `http://wifi-device-xxxxxx.local/`.
 - Show numeric IP as fallback.
 
 ### 6. Handoff

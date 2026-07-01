@@ -6,10 +6,10 @@ or manual DHCP address lookup.
 
 ## User Flow
 
-1. Join the device setup network: `mmWave-XXXXXX`.
+1. Join the device setup network: `WifiDevice-XXXXXX`.
 2. Open the captive setup page or visit `http://192.168.4.1/`.
 3. Select a local Wi-Fi network and enter the password.
-4. Use the dashboard at `http://mmwave-xxxxxx.local/`.
+4. Use the dashboard at `http://wifi-device-xxxxxx.local/`.
 
 The numeric DHCP address remains available as a fallback when mDNS is not
 available on the local network.
@@ -49,9 +49,9 @@ public IPs, timestamps, dashboard IDs, and location data are intentionally remov
 
 ## Firmware Targets
 
-The Arduino firmware is the current reference behavior. The Zephyr firmware is
-the shared multi-board implementation path and should preserve the same setup
-flow, routes, and dashboard handoff behavior.
+The Arduino firmware is the reference behavior. The Zephyr firmware is the
+shared multi-board implementation path and should preserve the same setup flow,
+routes, and dashboard handoff behavior.
 
 ```text
 arduino/local_device_portal/      Arduino firmware
@@ -81,6 +81,18 @@ xiao_esp32c6/esp32c6/hpcore       Seeed Studio XIAO ESP32-C6
 └── .gitignore
 ```
 
+## Support Matrix
+
+```text
+Arduino
+  Tested: ESP32-C6
+  Expected: other ESP32 boards that support Wi-Fi AP+STA, Preferences, and mDNS
+
+Zephyr
+  Tested: ESP-WROOM-32, XIAO ESP32-C6
+  Expected: ESP32-C2 once your Zephyr tree provides a matching board target
+```
+
 ## Zephyr Workspace Model
 
 This repository is a Zephyr application repository. Running `west update` from
@@ -98,6 +110,16 @@ Those directories are generated workspace content and are intentionally ignored
 by Git. Product code stays in `arduino/`, `zephyr/local_device_portal/`, and
 `docs/`.
 
+## Production Notes
+
+- Change the default AP password in `portal_config.h` before shipping a device.
+- Saved Wi-Fi credentials live in flash/NVS/settings storage and are not
+  encrypted by this repo on their own.
+- Enable flash encryption and secure boot on production targets if you need
+  stronger protection for stored credentials.
+- Disable the development-only Wi-Fi clearing behavior before release if you
+  want credentials to persist across firmware updates.
+
 ## Documentation
 
 ```text
@@ -106,4 +128,6 @@ zephyr/ARDUINO_PARITY.md          Arduino-to-Zephyr portal behavior parity
 arduino/README.md                 Arduino workflow
 docs/architecture.md              Product architecture
 docs/zephyr-plan.md               Zephyr implementation roadmap
+CONTRIBUTING.md                   Repo contribution expectations
+SECURITY.md                       Security handling and reporting notes
 ```
