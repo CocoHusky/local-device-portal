@@ -8,7 +8,6 @@ target_sources(app PRIVATE
   src/credential_store.c
   src/portal_dns.c
   src/portal_http.c
-  src/portal_mdns.c
   src/portal_render.c
   src/portal_state.c
   src/wifi_manager.c
