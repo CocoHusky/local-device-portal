@@ -80,70 +80,19 @@ bool connectSTA(const String& ssid, const String& pass, unsigned long timeoutMs)
 }
 
 void updateOnlineData(bool force = false) {
+  (void)force;
+
   if (WiFi.status() != WL_CONNECTED) {
     onlineOk = false;
     onlineSummary = "Local Wi-Fi is not connected.";
-    onlineUpdatedAt = millis();
-    return;
-  }
-
-  if (!force && millis() - lastOnlineFetchAt < 60000) {
-    return;
-  }
-
-  lastOnlineFetchAt = millis();
-
-  HTTPClient http;
-  http.setConnectTimeout(3500);
-  http.setTimeout(4500);
-
-  if (!http.begin("http://ip-api.com/json/?fields=status,message,country,regionName,city,timezone,query")) {
-    onlineOk = false;
-    onlineSummary = "Could not start online request.";
-    onlineUpdatedAt = millis();
-    return;
-  }
-
-  int code = http.GET();
-
-  if (code == HTTP_CODE_OK) {
-    String body = http.getString();
-    String status = jsonValue(body, "status");
-    String message = jsonValue(body, "message");
-    String city = jsonValue(body, "city");
-    String region = jsonValue(body, "regionName");
-    String country = jsonValue(body, "country");
-    String timezone = jsonValue(body, "timezone");
-    String publicIp = jsonValue(body, "query");
-
-    if (status == "success") {
-      onlineOk = true;
-      if (timezone.length()) {
-        onlineTimezone = timezone;
-      }
-      onlineSummary = "Device internet OK";
-      if (city.length() || region.length() || country.length()) {
-        onlineSummary += " / " + city;
-        if (region.length()) onlineSummary += ", " + region;
-        if (country.length()) onlineSummary += ", " + country;
-      }
-      if (timezone.length()) {
-        onlineSummary += " / " + timezone;
-      }
-      if (publicIp.length()) {
-        onlineSummary += " / public IP " + publicIp;
-      }
-    } else {
-      onlineOk = false;
-      onlineSummary = message.length() ? message : "Online service returned an error.";
-    }
   } else {
     onlineOk = false;
-    onlineSummary = "Online request failed with HTTP " + String(code) + ".";
+    onlineSummary = "Offline dashboard mode";
   }
 
+  onlineSource = "local";
+  onlineTimezone = "UTC";
   onlineUpdatedAt = millis();
-  http.end();
 }
 
 // ── Shared HTML ───────────────────────────────────────────────────────────────
@@ -660,8 +609,8 @@ String successPage(const String& ssid, const String& ip) {
   h += "<div class='hostname'>" + htmlEscape(dashboardUrl) + "</div>";
   h += "<p class='small'>Backup IP: " + htmlEscape(ip) + "</p>";
 
-  h += "<p>Click below. A dashboard tab will open, the setup Wi-Fi will turn off, then your device should return to your normal Wi-Fi.</p>";
-  h += "<a class='btn btn-primary' target='_blank' rel='noopener' href='" + htmlEscape(setupApUrl("/handoff")) + "'>Go to dashboard</a>";
+  h += "<p>Copy the dashboard address, then close the setup Wi-Fi.</p>";
+  h += "<a class='btn btn-primary' href='" + htmlEscape(setupApUrl("/handoff")) + "'>Finish setup and close setup Wi-Fi</a>";
   h += "</div>";
 
   h += bottomActions();
@@ -670,31 +619,24 @@ String successPage(const String& ssid, const String& ip) {
 }
 
 String handoffPage(const String& ip) {
-  String h = pageHead("Opening Dashboard");
-
-  h += "<meta http-equiv='refresh' content='15;url=" + htmlEscape(dashboardUrl) + "'>";
+  String h = pageHead("Finish Setup");
 
   h += "<div class='card'>";
-  h += "<div class='card-title'>Opening dashboard</div>";
-  h += "<h2>Switching Wi-Fi</h2>";
-  h += "<div class='spinner'></div>";
-  h += "<div class='countdown'>15 sec</div>";
+  h += "<div class='card-title'>Finish setup</div>";
+  h += "<h2>Setup Wi-Fi closing</h2>";
 
-  h += "<p class='msg info'>The setup Wi-Fi is turning off. Your device should reconnect to your normal Wi-Fi, then open the dashboard.</p>";
-  h += "<p>This can take a few seconds.</p>";
+  h += "<p class='msg info'>The setup Wi-Fi is turning off. Captive portal browsers can block automatic dashboard redirects, so this page will not redirect.</p>";
+  h += String("<p>Copy the dashboard URL below. When ") + htmlEscape(setupApSsid) + " disconnects, reconnect to your normal Wi-Fi and paste the URL into a normal browser tab.</p>";
 
   h += "<p>Dashboard:</p>";
-  h += "<div class='hostname'>" + htmlEscape(dashboardUrl) + "</div>";
+  h += "<input id='dashUrl' readonly value='" + htmlEscape(dashboardUrl) + "' ";
+  h += "onclick='this.select()' style='font-size:.9rem;font-weight:800;color:#fff'>";
+  h += "<button class='btn-primary' type='button' onclick='copyDashUrl()'>Copy dashboard URL</button>";
   h += "<p class='small'>Backup IP: " + htmlEscape(ip) + "</p>";
-
-  h += "<a class='btn btn-primary' target='_blank' rel='noopener' href='" + htmlEscape(dashboardUrl) + "'>Open dashboard now</a>";
   h += "</div>";
 
   h += "<script>";
-  h += "var dashboardUrl='" + htmlEscape(dashboardUrl) + "';";
-  h += "setTimeout(function(){";
-  h += "window.location.replace(dashboardUrl);";
-  h += "},15000);";
+  h += "function copyDashUrl(){var i=document.getElementById('dashUrl');if(!i)return;i.select();i.setSelectionRange(0,9999);if(navigator.clipboard){navigator.clipboard.writeText(i.value);}else{document.execCommand('copy');}}";
   h += "</script>";
 
   h += pageFoot();
@@ -727,7 +669,7 @@ String dashboardPage() {
   h += "<div class='card'>";
   h += "<div class='card-title'>Online Data</div>";
   h += "<div id='onlineData'>";
-  h += "<p class='msg info'>Checking internet access...</p>";
+  h += "<p class='msg info'>Offline dashboard mode.</p>";
   h += "</div>";
   h += "</div>";
 
@@ -735,11 +677,10 @@ String dashboardPage() {
   h += "function setRows(id,rows){var el=document.getElementById(id); if(!el)return; el.innerHTML=rows.map(function(r){return '<div class=\"status-row\"><span class=\"status-label\">'+r[0]+'</span><span class=\"status-value\">'+r[1]+'</span></div>';}).join('');}";
   h += "function onlineHtml(cls,rows){return '<p class=\"msg '+cls+'\">'+rows[0]+'</p><div class=\"status-grid\">'+rows.slice(1).map(function(r){return '<div class=\"status-row\"><span class=\"status-label\">'+r[0]+'</span><span class=\"status-value\">'+r[1]+'</span></div>';}).join('')+'</div>';}";
   h += "function setOnline(cls,rows){var o=document.getElementById('onlineData'); if(o)o.innerHTML=onlineHtml(cls,rows);}";
-  h += "function fetchInternetTime(tz,prefix){var zone=encodeURIComponent(tz||'America/Chicago'); fetch('https://worldtimeapi.org/api/timezone/'+zone,{cache:'no-store'}).then(function(r){return r.json();}).then(function(t){var dt=t.datetime||t.utc_datetime||''; setOnline('ok',[prefix,['Internet time',dt||'unknown'],['Timezone',tz||'unknown']]);}).catch(function(){setOnline('err',[prefix,['Internet time','Browser online time request failed'],['Timezone',tz||'unknown']]);});}";
-  h += "function browserOnlineFallback(msg,tz){fetch('https://api.ipify.org?format=json',{cache:'no-store'}).then(function(r){return r.json();}).then(function(ip){fetchInternetTime(tz,'Browser internet OK / public IP '+ip.ip+' / device check: '+msg);}).catch(function(){setOnline('err',['Internet check failed: '+msg,['Internet time','not available']]);});}";
+  h += "function localOnlineRows(d){return [d.online_summary||'Offline dashboard mode',['Internet time','not available'],['Timezone',d.online_timezone||'UTC']];}";
   h += "function refreshData(){fetch('/data',{cache:'no-store'}).then(function(r){return r.json();}).then(function(d){";
   h += "setRows('deviceData', [['Uptime',d.uptime],['RSSI',d.rssi+' dBm']]);";
-  h += "if(d.online_ok){fetchInternetTime(d.online_timezone,d.online_summary);}else{browserOnlineFallback(d.online_summary,d.online_timezone);}";
+  h += "setOnline('info',localOnlineRows(d));";
   h += "}).catch(function(){setOnline('err',['Dashboard could not read live data from the device.',['Internet time','not available']]);});}";
   h += "refreshData(); setInterval(refreshData,10000);";
   h += "</script>";
@@ -882,7 +823,7 @@ void handleHandoff() {
 
   if (WiFi.status() != WL_CONNECTED) {
     server.send(200, "text/html; charset=utf-8",
-                setupPage("The sensor is not connected to local Wi-Fi yet."));
+                setupPage("The device is not connected to local Wi-Fi yet."));
     return;
   }
 

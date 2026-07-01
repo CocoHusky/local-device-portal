@@ -18,7 +18,7 @@ available on the local network.
 
 The screenshots below show the intended portal flow. They are sanitized SVG
 redraws of the working Arduino portal screens; real network names, local details,
-public IPs, timestamps, dashboard IDs, and location data are intentionally removed.
+timestamps, dashboard IDs, and location data are intentionally removed.
 
 <table>
   <tr>
@@ -41,7 +41,7 @@ public IPs, timestamps, dashboard IDs, and location data are intentionally remov
     </td>
     <td width="50%" valign="top">
       <h3>4. Local dashboard</h3>
-      <p>The dashboard confirms local Wi-Fi connectivity and shows runtime, RSSI, and optional online status fields.</p>
+      <p>The dashboard confirms local Wi-Fi connectivity and shows runtime and RSSI.</p>
       <img src="assets/portal/portal-step-dashboard.svg" alt="Local dashboard screen" width="100%" />
     </td>
   </tr>
@@ -49,9 +49,8 @@ public IPs, timestamps, dashboard IDs, and location data are intentionally remov
 
 ## Firmware Targets
 
-The Arduino firmware is the reference behavior. The Zephyr firmware is the
-shared multi-board implementation path and should preserve the same setup flow,
-routes, and dashboard handoff behavior.
+The Arduino firmware is the reference workflow. The Zephyr firmware follows the
+same setup flow, routes, and dashboard handoff behavior.
 
 ```text
 arduino/local_device_portal/      Arduino firmware
@@ -73,9 +72,7 @@ xiao_esp32c6/esp32c6/hpcore       Seeed Studio XIAO ESP32-C6
 ├── zephyr/                       Zephyr app manifest and firmware app
 │   ├── west.yml                  Zephyr workspace manifest
 │   └── local_device_portal/      Zephyr application
-├── assets/                       Sanitized README images and generated assets
-├── docs/                         Product architecture and roadmap
-├── .github/workflows/            Build automation
+├── assets/                       Sanitized README images
 ├── LICENSE
 ├── README.md
 └── .gitignore
@@ -86,11 +83,11 @@ xiao_esp32c6/esp32c6/hpcore       Seeed Studio XIAO ESP32-C6
 ```text
 Arduino
   Tested: ESP32-C6
-  Expected: other ESP32 boards that support Wi-Fi AP+STA, Preferences, and mDNS
+  Portable to other ESP32 boards that support Wi-Fi AP+STA, Preferences, and mDNS
 
 Zephyr
   Tested: ESP-WROOM-32, XIAO ESP32-C6
-  Expected: ESP32-C2 once your Zephyr tree provides a matching board target
+  Portable to other ESP32 boards after adding and verifying the matching Zephyr board target
 ```
 
 ## Zephyr Workspace Model
@@ -107,27 +104,25 @@ build/
 ```
 
 Those directories are generated workspace content and are intentionally ignored
-by Git. Product code stays in `arduino/`, `zephyr/local_device_portal/`, and
-`docs/`.
+by Git. Product code stays in `arduino/` and `zephyr/local_device_portal/`.
 
 ## Production Notes
 
 - Change the default AP password in `portal_config.h` before shipping a device.
-- Saved Wi-Fi credentials live in flash/NVS/settings storage and are not
-  encrypted by this repo on their own.
+- Saved Wi-Fi credentials are stored in flash/NVS/settings and are not encrypted
+  unless platform security is enabled.
+- Arduino defaults to offline dashboard data with UTC as the timezone label.
+  The firmware does not call external time, location, or weather services.
 - Enable flash encryption and secure boot on production targets if you need
   stronger protection for stored credentials.
-- Disable the development-only Wi-Fi clearing behavior before release if you
-  want credentials to persist across firmware updates.
+- Set `CLEAR_WIFI_ON_NEW_UPLOAD` to `true` only when you want each new Arduino
+  upload to reset saved Wi-Fi during development.
 
 ## Documentation
 
 ```text
 zephyr/README.md                  Zephyr setup, build, flash, monitor
-zephyr/ARDUINO_PARITY.md          Arduino-to-Zephyr portal behavior parity
 arduino/README.md                 Arduino workflow
-docs/architecture.md              Product architecture
-docs/zephyr-plan.md               Zephyr implementation roadmap
 CONTRIBUTING.md                   Repo contribution expectations
 SECURITY.md                       Security handling and reporting notes
 ```

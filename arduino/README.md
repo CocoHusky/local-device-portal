@@ -67,27 +67,6 @@ SSID: WifiDevice-XXXXXX
 Setup URL: http://192.168.4.1/
 ```
 
-## Build and Upload from macOS Terminal
-
-From the repository root:
-
-```sh
-./scripts/build-upload-arduino.sh /dev/cu.usbmodem14401
-```
-
-Use your actual port if it is different:
-
-```sh
-ls /dev/cu.*
-```
-
-The script uses:
-
-```text
-FQBN: esp32:esp32:esp32c6
-Sketch: arduino/local_device_portal/local_device_portal.ino
-```
-
 ## Use the Portal
 
 Connect your computer or phone to:
@@ -125,13 +104,19 @@ Click `Reset saved Wi-Fi` in the portal or dashboard. The board restarts and ret
 
 ## Development Mode
 
-The sketch currently clears saved Wi-Fi once per newly compiled upload:
+The sketch keeps saved Wi-Fi credentials across newly compiled uploads:
 
 ```cpp
-const bool CLEAR_WIFI_ON_NEW_UPLOAD = true;
+const bool CLEAR_WIFI_ON_NEW_UPLOAD = false;
 ```
 
-Set it to `false` for production behavior.
+Set it to `true` while developing if every new upload should reset saved Wi-Fi.
+
+The dashboard uses local-only data and reports `UTC` as the timezone label. The
+firmware does not call external time, location, or weather services.
+
+Saved Wi-Fi credentials are stored in flash/NVS/settings and are not encrypted
+unless platform security is enabled.
 
 ## Dependencies
 

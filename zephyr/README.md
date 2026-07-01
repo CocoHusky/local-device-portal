@@ -1,7 +1,7 @@
 # Zephyr Firmware
 
 This directory contains the Zephyr workspace manifest and firmware application
-for Local Device Portal.
+for Wifi Device.
 
 ## Application Layout
 
@@ -196,6 +196,9 @@ The portal should provide:
 - Saved credentials through Zephyr settings/NVS
 - Dashboard URL: `http://wifi-device-xxxxxx.local/`
 - Numeric IP fallback
+
+Saved Wi-Fi credentials are stored in flash/NVS/settings and are not encrypted
+unless platform security is enabled.
 
 The Zephyr implementation intentionally does not run an interactive Wi-Fi scan
 from `/scan` while a phone is connected to the setup AP. On ESP32 AP-STA this can

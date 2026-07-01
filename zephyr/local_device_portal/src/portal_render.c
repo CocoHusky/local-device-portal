@@ -354,8 +354,8 @@ void portal_render_success(char *buf, size_t cap, const char *ssid)
 		"<div class='card'><div class='title'>Step 3 of 3</div><h2>Connected</h2>"
 		"<p>The device joined <b style='color:white'>%s</b>.</p>"
 		"<p>Dashboard:</p><div class='host'>%s</div><p class='small'>Backup IP: %s</p>"
-		"<p>Click below to close setup Wi-Fi. Then reconnect to your normal Wi-Fi and open the dashboard.</p>"
-		"<form method='POST' action='/handoff'><button>Go to dashboard</button></form></div>",
+		"<p>Copy the dashboard address, then close the setup Wi-Fi.</p>"
+		"<form method='POST' action='/handoff'><button>Finish setup and close setup Wi-Fi</button></form></div>",
 		esc, portal_state_dashboard_url(), ip[0] ? ip : "check serial");
 	bottom_actions(buf, cap, &off);
 	page_footer(buf, cap, &off);
@@ -365,15 +365,15 @@ void portal_render_handoff(char *buf, size_t cap)
 {
 	size_t off = 0;
 
-	page_header(buf, cap, &off, "Opening dashboard");
-	auto_redirect(buf, cap, &off, portal_state_dashboard_url(), 30000);
+	page_header(buf, cap, &off, "Finish setup");
 	page_append(buf, cap, &off,
-		"<div class='card'><div class='title'>Opening dashboard</div><h2>Switching Wi-Fi</h2>"
-		"<div class='spin'></div><div class='ip' style='text-align:center;color:white'>30 sec</div>"
-		"<p>The setup Wi-Fi is turning off. Your device should reconnect to your normal Wi-Fi, then open the dashboard.</p>"
-		"<p>This can take up to <b style='color:white'>30 seconds</b>.</p>"
-		"<p>Dashboard:</p><div class='ip'>%s</div><a class='btn primary' href='%s'>Open dashboard now</a></div>",
-		portal_state_dashboard_url(), portal_state_dashboard_url());
+		"<div class='card'><div class='title'>Finish setup</div><h2>Setup Wi-Fi closing</h2>"
+		"<p class='msg'>The setup Wi-Fi is turning off. Captive portal browsers can block automatic dashboard redirects, so this page will not redirect.</p>"
+		"<p>Copy the dashboard URL below. When the setup Wi-Fi disconnects, reconnect to your normal Wi-Fi and paste the URL into a normal browser tab.</p>"
+		"<p>Dashboard:</p><input id='dashUrl' readonly value='%s' onclick='this.select()'>"
+		"<button type='button' onclick='copyDashUrl()'>Copy dashboard URL</button></div>"
+		"<script>function copyDashUrl(){var i=document.getElementById('dashUrl');if(!i)return;i.select();i.setSelectionRange(0,9999);if(navigator.clipboard){navigator.clipboard.writeText(i.value);}else{document.execCommand('copy');}}</script>",
+		portal_state_dashboard_url());
 	page_footer(buf, cap, &off);
 }
 
